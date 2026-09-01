@@ -103,3 +103,8 @@ export function generateRaycastPolygon(origin, radius, uniquePoints, allWalls) {
     maskGraphics.endFill();
     return maskGraphics;
 }
+// Helper to check if two line segments (p1-p2 and p3-p4) cross each other
+export function doSegmentsIntersect(p1, p2, p3, p4) {
+    const ccw = (A, B, C) => (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x);
+    return (ccw(p1, p3, p4) !== ccw(p2, p3, p4)) && (ccw(p1, p2, p3) !== ccw(p1, p2, p4));
+}

@@ -2,7 +2,7 @@ import * as PIXI from 'pixi.js';
 import { state } from './state.js';
 import { app, mapContainer, previewLayer, redrawWalls, updateLighting, drawMarkerIcon } from './renderer.js';
 import { db, set, dbRef, dbRefs } from './firebase.js';
-import { getSnappedPoint, dist2, distToSegmentSquared } from './math.js';
+import { getSnappedPoint, dist2, distToSegmentSquared, doSegmentsIntersect } from './math.js';
 
 export function setupInputs() {
     app.stage.eventMode = 'static';
@@ -104,18 +104,43 @@ export function setupInputs() {
         
         if (state.activeDragTokenId && state.tokens[state.activeDragTokenId]) {
             const newPos = mapContainer.toLocal(e.global);
-            state.tokens[state.activeDragTokenId].x = newPos.x;
-            state.tokens[state.activeDragTokenId].y = newPos.y;
+            const oldPos = { 
+                x: state.tokens[state.activeDragTokenId].x, 
+                y: state.tokens[state.activeDragTokenId].y 
+            };
             
-            if (state.tokenSprites[state.activeDragTokenId]) {
-                state.tokenSprites[state.activeDragTokenId].x = newPos.x;
-                state.tokenSprites[state.activeDragTokenId].y = newPos.y;
+            let hasCollision = false;
+            const TOKEN_RADIUS_SQ = 24 * 24; // Physical radius of the token icon
+            
+            // Check if the intended move hits any walls
+            for (const wall of state.walls) {
+                // 1. Did the token move too fast and jump through a wall?
+                if (doSegmentsIntersect(oldPos, newPos, wall.p1, wall.p2)) {
+                    hasCollision = true;
+                    break;
+                }
+                // 2. Is the token sliding too close to the wall?
+                if (distToSegmentSquared(newPos, wall.p1, wall.p2) < TOKEN_RADIUS_SQ) {
+                    hasCollision = true;
+                    break;
+                }
             }
-            
-            set(dbRef(db, `tokens/${state.activeDragTokenId}/x`), newPos.x);
-            set(dbRef(db, `tokens/${state.activeDragTokenId}/y`), newPos.y);
 
-            updateLighting(); 
+            // Only move the token if the path is clear
+            if (!hasCollision) {
+                state.tokens[state.activeDragTokenId].x = newPos.x;
+                state.tokens[state.activeDragTokenId].y = newPos.y;
+                
+                if (state.tokenSprites[state.activeDragTokenId]) {
+                    state.tokenSprites[state.activeDragTokenId].x = newPos.x;
+                    state.tokenSprites[state.activeDragTokenId].y = newPos.y;
+                }
+                
+                set(dbRef(db, `tokens/${state.activeDragTokenId}/x`), newPos.x);
+                set(dbRef(db, `tokens/${state.activeDragTokenId}/y`), newPos.y);
+
+                updateLighting(); 
+            }
             return;
         }
 
