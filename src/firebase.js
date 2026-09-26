@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref as dbRef, set, onValue } from "firebase/database";
+import { getDatabase, ref as dbRef, set, onValue, get } from "firebase/database";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const firebaseConfig = {
@@ -9,20 +9,22 @@ const firebaseConfig = {
     storageBucket: "vtt-light.firebasestorage.app",
     messagingSenderId: "744744325206",
     appId: "1:744744325206:web:cd89fbf90da6a802aaabf7",
-    databaseURL: "https://vtt-light-default-rtdb.europe-west1.firebasedatabase.app" 
+    databaseURL: "https://vtt-light-default-rtdb.europe-west1.firebasedatabase.app"
 };
 
 export const app = initializeApp(firebaseConfig);
-export const db = getDatabase(app);
-export const storage = getStorage(app);
+const db = getDatabase(app);
+const storage = getStorage(app);
 
 export const dbRefs = {
     walls: dbRef(db, 'walls'),
-    lights: dbRef(db, 'lights'), 
-    tokens: dbRef(db, 'tokens'), 
+    lights: dbRef(db, 'lights'),
+    tokens: dbRef(db, 'tokens'),
     tokenSettings: dbRef(db, 'tokenSettings'),
-    mapData: dbRef(db, 'map') 
+    mapData: dbRef(db, 'map'),
+    movementLock: dbRef(db, 'movementLock'),
+    haloRadius: dbRef(db, 'haloRadius')
 };
 
 // Re-export common functions so other modules don't have to import from 'firebase' directly
-export { set, onValue, dbRef, storageRef, uploadBytes, getDownloadURL };
+export { db, set, onValue, get, dbRef, storage, storageRef, uploadBytes, getDownloadURL };

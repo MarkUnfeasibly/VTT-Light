@@ -1,8 +1,80 @@
 import { state } from './state.js';
-import { app, mapContainer, fitMapToScreen, redrawWalls, updateLighting, wallLayer, previewLayer, lightMarkerLayer, fowContainer } from './renderer.js';
-import { db, set, dbRef, dbRefs, storage, storageRef, uploadBytes, getDownloadURL } from './firebase.js';
+import { app, mapContainer, fitMapToScreen, redrawWalls, updateLighting, wallLayer, previewLayer, lightMarkerLayer, fowContainer, lightingContainer } from './renderer.js';
+import { db, set, dbRef, dbRefs, storage, storageRef, uploadBytes, getDownloadURL, get } from './firebase.js';
 
 export function setupUI() {
+    // --- FEATURE: MAX MOVE HALO SLIDER ---
+    document.getElementById('haloRadiusInput').addEventListener('input', (e) => {
+        set(dbRefs.haloRadius, parseInt(e.target.value, 10));
+    });
+
+    // --- FEATURE: TOKEN LOCK & TURN RESET ---
+    // Replace your existing toggleLock listener with this one:
+    document.getElementById('toggleLock').addEventListener('click', () => {
+        const newLockState = !state.isMovementLocked;
+        set(dbRefs.movementLock, newLockState);
+        
+        // When UNLOCKING (starting a new round), lock in the tokens' current positions as their new origins
+        if (!newLockState && state.tokens) {
+            Object.keys(state.tokens).forEach(id => {
+                const t = state.tokens[id];
+                set(dbRef(db, `tokens/${id}/originX`), t.x);
+                set(dbRef(db, `tokens/${id}/originY`), t.y);
+            });
+        }
+    });
+
+    // --- FEATURE: EXPORT SCENE ---
+    document.getElementById('exportScene').addEventListener('click', async () => {
+        try {
+            const mapSnap = await get(dbRefs.mapData);
+            const sceneData = {
+                mapData: mapSnap.val(),
+                walls: state.walls || [],
+                lights: state.lights || null
+            };
+            
+            const blob = new Blob([JSON.stringify(sceneData, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `VTT_Scene_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error("Export failed:", e);
+            alert("Failed to export scene.");
+        }
+    });
+
+    // --- FEATURE: IMPORT SCENE ---
+    document.getElementById('importScene').addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const sceneData = JSON.parse(e.target.result);
+                
+                // Push loaded data directly to Firebase to sync all clients
+                if (sceneData.mapData) set(dbRefs.mapData, sceneData.mapData);
+                set(dbRefs.walls, sceneData.walls || []);
+                set(dbRefs.lights, sceneData.lights || null);
+                
+                // Reset UI states
+                state.activeSelectWallIndex = null;
+                state.activeSelectLightId = null;
+                redrawWalls();
+                
+                event.target.value = ""; // Clear input so same file can be re-loaded if needed
+            } catch (err) {
+                console.error("Import failed:", err);
+                alert("Invalid scene file.");
+            }
+        };
+        reader.readAsText(file);
+    });
     document.getElementById('rotateCCW').addEventListener('click', () => {
         if (!state.currentMapSprite) return;
         mapContainer.angle = (mapContainer.angle - 90) % 360;
@@ -87,7 +159,6 @@ export function setupUI() {
         updateLighting(); 
         set(dbRefs.tokenSettings, state.tokenSettings);
     });
-
     document.getElementById('clearWalls').addEventListener('click', () => { 
         set(dbRefs.walls, []); 
         state.activeSelectWallIndex = null; 
@@ -98,24 +169,22 @@ export function setupUI() {
         set(dbRefs.lights, null); 
         state.activeSelectLightId = null; 
     });
+    const modeSelect = document.getElementById('modeSelect');
+    const gmTools = document.getElementById('gmTools');
 
-    document.getElementById('modeSelect').addEventListener('change', (e) => {
+    modeSelect.addEventListener('change', (e) => {
         const isPrepMode = e.target.value === 'prep';
         
         wallLayer.visible = isPrepMode;
         previewLayer.visible = isPrepMode; 
         lightMarkerLayer.visible = isPrepMode;
         fowContainer.visible = !isPrepMode;
-        lightingContainer.mask = null; // Lighting container should never be masked
+        lightingContainer.mask = null; 
         
-        document.getElementById('drawControls').style.display = isPrepMode ? 'flex' : 'none';
-        document.getElementById('lightControls').style.display = isPrepMode ? 'flex' : 'none';
-        document.getElementById('tokenControls').style.display = isPrepMode ? 'flex' : 'none';
+        // Toggle the entire GM UI block
+        if (gmTools) gmTools.style.display = isPrepMode ? 'flex' : 'none';
         
-        if (isPrepMode) {
-            document.getElementById('lightHint').style.display = "inline-block";
-        } else {
-            document.getElementById('lightHint').style.display = "none";
+        if (!isPrepMode) {
             state.isDrawMode = false;
             state.isLightAddMode = false;
             state.activeSelectLightId = null; 
@@ -131,6 +200,9 @@ export function setupUI() {
         updateLighting(); 
     });
 
+    // Force Play Mode immediately on load
+    modeSelect.dispatchEvent(new Event('change'));
+
     document.getElementById('mapUpload').addEventListener('change', async (event) => {
         const file = event.target.files[0];
         if (!file) return;
@@ -140,7 +212,7 @@ export function setupUI() {
         document.getElementById('mapUpload').disabled = true;
 
         try {
-            const sRef = storageRef(storage, 'maps/current_map');
+            const sRef = storageRef(storage, `maps/${Date.now()}_${file.name}`);
             await uploadBytes(sRef, file);
             const url = await getDownloadURL(sRef);
             set(dbRefs.mapData, { url: url, type: file.type });

@@ -48,59 +48,80 @@
 
     <div id="controls">
         <select id="modeSelect" style="background: #00509e; color: white; padding: 5px; border-radius: 4px; border: 1px solid #555; font-weight: bold;">
+            <option value="play" selected>🎲 Play Mode</option>
             <option value="prep">🛠️ Prep Mode</option>
-            <option value="play">🎲 Play Mode</option>
         </select>
         
-        <div class="divider"></div>
-
-        <label for="mapUpload"><strong>Map: </strong></label>
-        <input type="file" id="mapUpload" accept=".png, .jpg, .jpeg, .pdf" />
-        
-        <button id="rotateCCW">↺ CCW</button>
-        <button id="rotateCW">↻ CW</button>
-        
-        <span id="drawControls" style="display: flex; gap: 10px; align-items: center;">
+        <!-- Everything in here will vanish when Play Mode is active -->
+        <div id="gmTools" style="display: none; align-items: center; gap: 10px; flex-wrap: wrap;">
             <div class="divider"></div>
-            <button id="toggleDraw" style="background: #444; color: white;">✏️ Draw Walls: OFF</button>
-            <button id="clearWalls" style="background: #444; color: white;">🗑️ Clear Walls</button>
-        </span>
 
-        <span id="lightControls" style="display: flex; gap: 10px; align-items: center;">
-            <div class="divider"></div>
-            <select id="lightTypeSelect" style="background: #2d2d2d; color: white; padding: 5px; border-radius: 4px; border: 1px solid #555;">
-                <option value="ceiling">🟡 Ceiling Light</option>
-                <option value="emergency">🔴 Emergency Light</option>
-            </select>
+            <label for="mapUpload"><strong>Map: </strong></label>
+            <input type="file" id="mapUpload" accept=".png, .jpg, .jpeg, .pdf" />
             
-            <div style="display: flex; align-items: center; gap: 8px; background: #333; padding: 2px 8px; border-radius: 4px;">
-                <label for="lightRadiusInput" style="font-size: 0.9em;">Radius:</label>
-                <input type="range" id="lightRadiusInput" min="50" max="1000" value="400" step="10">
-            </div>
+            <!-- NEW: Scene Export/Import -->
+            <span id="sceneControls" style="display: flex; gap: 10px; align-items: center;">
+                <div class="divider"></div>
+                <button id="exportScene" style="background: #4a148c; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">💾 Export Scene</button>
+                <label for="importScene" style="background: #4a148c; color: white; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 0.9em;">📂 Import Scene</label>
+                <input type="file" id="importScene" accept=".json" style="display: none;" />
+            </span>
 
-            <button id="toggleLightMode" style="background: #b8860b; color: white; border: none;">💡 Add Lights: OFF</button>
-            <button id="clearLights" style="background: #444; color: white;">🗑️ Clear Lights</button>
-        </span>
-
-        <span id="tokenControls" style="display: flex; gap: 10px; align-items: center;">
-            <div class="divider"></div>
-            <label for="tokenCountSelect" style="font-size: 0.9em;">Players:</label>
-            <select id="tokenCountSelect" style="background: #2d2d2d; color: white; padding: 5px; border-radius: 4px; border: 1px solid #555;">
-                <option value="1">1</option>
-                <option value="2">2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
-                <option value="5">5</option>
-                <option value="6" selected>6</option>
-            </select>
+            <!-- ... (rotate buttons and drawControls stay the same) ... -->
             
-            <div style="display: flex; align-items: center; gap: 8px; background: #333; padding: 2px 8px; border-radius: 4px;">
-                <label for="tokenRadiusInput" style="font-size: 0.9em;">Torch Radius:</label>
-                <input type="range" id="tokenRadiusInput" min="50" max="600" value="250" step="10">
-            </div>
-        </span>
+            <button id="rotateCCW">↺ CCW</button>
+            <button id="rotateCW">↻ CW</button>
+            
+            <span id="drawControls" style="display: flex; gap: 10px; align-items: center;">
+                <div class="divider"></div>
+                <button id="toggleDraw" style="background: #444; color: white;">✏️ Draw Walls: OFF</button>
+                <button id="clearWalls" style="background: #444; color: white;">🗑️ Clear Walls</button>
+            </span>
 
-        <span id="lightHint" style="font-size: 0.8em; color: #aaa; display: none; width: 100%; text-align: center;">(Select a wall or light to edit. Shift+Click or press Delete to remove)</span>
+            <span id="lightControls" style="display: flex; gap: 10px; align-items: center;">
+                <div class="divider"></div>
+                <select id="lightTypeSelect" style="background: #2d2d2d; color: white; padding: 5px; border-radius: 4px; border: 1px solid #555;">
+                    <option value="ceiling">🟡 Ceiling Light</option>
+                    <option value="emergency">🔴 Emergency Light</option>
+                </select>
+                
+                <div style="display: flex; align-items: center; gap: 8px; background: #333; padding: 2px 8px; border-radius: 4px;">
+                    <label for="lightRadiusInput" style="font-size: 0.9em;">Radius:</label>
+                    <input type="range" id="lightRadiusInput" min="50" max="1000" value="400" step="10">
+                </div>
+
+                <button id="toggleLightMode" style="background: #b8860b; color: white; border: none;">💡 Add Lights: OFF</button>
+                <button id="clearLights" style="background: #444; color: white;">🗑️ Clear Lights</button>
+            </span>
+
+            <span id="tokenControls" style="display: flex; gap: 10px; align-items: center;">
+                <div class="divider"></div>
+                <!-- NEW: Lock Button -->
+                <button id="toggleLock" style="background: #b71c1c; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">🔓 Tokens: UNLOCKED</button>
+                <label for="tokenCountSelect" style="font-size: 0.9em;">Players:</label>
+                <select id="tokenCountSelect" style="background: #2d2d2d; color: white; padding: 5px; border-radius: 4px; border: 1px solid #555;">
+                    <!-- ... options ... -->
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6" selected>6</option>
+              
+                <!-- Inside tokenControls, after the tokenCountSelect -->
+                <div style="display: flex; align-items: center; gap: 8px; background: #333; padding: 2px 8px; border-radius: 4px;">
+                <label for="haloRadiusInput" style="font-size: 0.9em;">Max Move:</label>
+                <input type="range" id="haloRadiusInput" min="50" max="1000" value="200" step="10">
+                </div>
+              </select>
+                
+                <div style="display: flex; align-items: center; gap: 8px; background: #333; padding: 2px 8px; border-radius: 4px;">
+                    <label for="tokenRadiusInput" style="font-size: 0.9em;">Torch Radius:</label>
+                    <input type="range" id="tokenRadiusInput" min="50" max="600" value="250" step="10">
+                </div>
+            </span>
+            <span id="lightHint" style="font-size: 0.8em; color: #aaa; display: none; width: 100%; text-align: center;">(Select a wall or light to edit. Shift+Click or press Delete to remove)</span>
+        </div>
     </div>
 
     <div id="vtt-container"></div>

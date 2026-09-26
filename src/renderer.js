@@ -178,6 +178,7 @@ export function displayMap(texture) {
     mapContainer.addChild(fowContainer); 
     mapContainer.addChild(lightMarkerLayer); 
     mapContainer.addChild(tokenLayer); 
+    mapContainer.addChild(haloLayer);
     
     mapContainer.angle = 0; 
     fitMapToScreen();
@@ -344,6 +345,29 @@ export function updateLighting() {
                 // Erase this polygon from the pitch-black fowDarkness layer
                 fowMask.blendMode = PIXI.BLEND_MODES.ERASE; 
                 fowEraseLayer.addChild(fowMask);
+            }
+        }
+    }
+}
+export const haloLayer = new PIXI.Graphics();
+// Make sure to add it to your mapContainer (e.g., mapContainer.addChild(haloLayer))
+
+export function drawHalos() {
+    haloLayer.clear();
+    
+    // Hide halos in prep mode or when the board is locked
+    if (document.getElementById('modeSelect').value === 'prep' || state.isMovementLocked) return;
+
+    haloLayer.lineStyle(3, 0x00ffcc, 0.4); // Faint cyan ring
+    
+    if (state.tokens && state.tokenSettings) {
+        // NEW: Only draw rings for the active number of players
+        for (let i = 1; i <= state.tokenSettings.count; i++) {
+            const t = state.tokens[i];
+            if (t) {
+                const ox = t.originX !== undefined ? t.originX : t.x;
+                const oy = t.originY !== undefined ? t.originY : t.y;
+                haloLayer.drawCircle(ox, oy, state.haloRadius || 200);
             }
         }
     }

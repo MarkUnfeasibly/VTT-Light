@@ -103,43 +103,59 @@ export function setupInputs() {
         }
         
         if (state.activeDragTokenId && state.tokens[state.activeDragTokenId]) {
-            const newPos = mapContainer.toLocal(e.global);
-            const oldPos = { 
-                x: state.tokens[state.activeDragTokenId].x, 
-                y: state.tokens[state.activeDragTokenId].y 
+            const isPrepMode = document.getElementById('modeSelect').value === 'prep';
+            if (state.isMovementLocked && !isPrepMode) return;
+
+            const oldPos = {
+                x: state.tokens[state.activeDragTokenId].x,
+                y: state.tokens[state.activeDragTokenId].y
             };
-            
+            let newPos = mapContainer.toLocal(e.global);
+
+            if (!isPrepMode) {
+                const token = state.tokens[state.activeDragTokenId];
+                const originX = token.originX !== undefined ? token.originX : token.x;
+                const originY = token.originY !== undefined ? token.originY : token.y;
+                const maxRadius = state.haloRadius || 200;
+
+                const dx = newPos.x - originX;
+                const dy = newPos.y - originY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance > maxRadius) {
+                    const ratio = maxRadius / distance;
+                    newPos.x = originX + dx * ratio;
+                    newPos.y = originY + dy * ratio;
+                }
+            }
+
             let hasCollision = false;
-            const TOKEN_RADIUS_SQ = 24 * 24; // Physical radius of the token icon
-            
-            // Check if the intended move hits any walls
+            const TOKEN_RADIUS_SQ = 24 * 24;
+
             for (const wall of state.walls) {
-                // 1. Did the token move too fast and jump through a wall?
                 if (doSegmentsIntersect(oldPos, newPos, wall.p1, wall.p2)) {
                     hasCollision = true;
                     break;
                 }
-                // 2. Is the token sliding too close to the wall?
                 if (distToSegmentSquared(newPos, wall.p1, wall.p2) < TOKEN_RADIUS_SQ) {
                     hasCollision = true;
                     break;
                 }
             }
 
-            // Only move the token if the path is clear
             if (!hasCollision) {
                 state.tokens[state.activeDragTokenId].x = newPos.x;
                 state.tokens[state.activeDragTokenId].y = newPos.y;
-                
+
                 if (state.tokenSprites[state.activeDragTokenId]) {
                     state.tokenSprites[state.activeDragTokenId].x = newPos.x;
                     state.tokenSprites[state.activeDragTokenId].y = newPos.y;
                 }
-                
+
                 set(dbRef(db, `tokens/${state.activeDragTokenId}/x`), newPos.x);
                 set(dbRef(db, `tokens/${state.activeDragTokenId}/y`), newPos.y);
 
-                updateLighting(); 
+                updateLighting();
             }
             return;
         }

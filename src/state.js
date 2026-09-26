@@ -6,6 +6,8 @@ export const state = {
     tokenSprites: {},
     tokenSettings: { count: 6, radius: 250 },
 
+    isMovementLocked: false,
+    
     isDrawMode: false,
     isDrawing: false,
     startPoint: null,

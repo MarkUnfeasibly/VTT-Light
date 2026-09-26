@@ -7,7 +7,7 @@ import {
     app, 
     redrawWalls, updateLighting, displayMap, 
     createLightMarker, createTokenSprite, drawMarkerIcon, drawTokenIcon,
-    lightMarkerLayer, tokenLayer
+    lightMarkerLayer, tokenLayer, haloLayer, drawHalos
 } from './renderer.js';
 
 // 1. Attach PixiJS Canvas to the DOM
@@ -95,6 +95,9 @@ onValue(dbRefs.tokens, (snapshot) => {
         if (state.activeDragTokenId !== i.toString()) {
             state.tokens[i].x = data[i].x;
             state.tokens[i].y = data[i].y;
+            // NEW: Sync the origin lock positions
+            state.tokens[i].originX = data[i].originX;
+            state.tokens[i].originY = data[i].originY;
             if (state.tokenSprites[i]) {
                 state.tokenSprites[i].x = state.tokens[i].x;
                 state.tokenSprites[i].y = state.tokens[i].y;
@@ -112,6 +115,18 @@ onValue(dbRefs.tokens, (snapshot) => {
         drawTokenIcon(state.tokenSprites[i].getChildAt(0), state.tokens[i].hasLantern);
     }
     updateLighting();
+    drawHalos(); // NEW: Redraw halos whenever tokens update
+});
+
+onValue(dbRefs.movementLock, (snapshot) => {
+        state.isMovementLocked = snapshot.val() || false;
+        
+        const lockBtn = document.getElementById('toggleLock');
+        if (lockBtn) {
+            lockBtn.innerText = state.isMovementLocked ? "🔒 Tokens: LOCKED" : "🔓 Tokens: UNLOCKED";
+            lockBtn.style.background = state.isMovementLocked ? "#d32f2f" : "#b71c1c";
+        }
+        drawHalos(); // NEW: Show or hide rings instantly
 });
 
 onValue(dbRefs.mapData, async (snapshot) => {
@@ -146,4 +161,9 @@ onValue(dbRefs.mapData, async (snapshot) => {
     } catch (error) {
         console.error("Cloud Map Error:", error);
     }
+});
+
+onValue(dbRefs.haloRadius, (snapshot) => {
+    state.haloRadius = snapshot.val() || 200;
+    drawHalos();
 });
