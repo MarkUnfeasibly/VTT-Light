@@ -111,9 +111,21 @@ export function createLightMarker(id, lightData) {
     return marker;
 }
 
-export function drawTokenIcon(graphics, hasLantern) {
+// NEW: Define 6 distinct colors (Red, Green, Blue, Purple, Orange, Cyan)
+export const TOKEN_COLORS = [
+    0xe53935, // 1
+    0x43a047, // 2
+    0x1e88e5, // 3
+    0x8e24aa, // 4
+    0xfb8c00, // 5
+    0x00acc1  // 6
+];
+
+export function drawTokenIcon(graphics, hasLantern, id) {
+    const color = TOKEN_COLORS[id - 1] || 0x2d88ff; // Fallback to blue if > 6
+
     graphics.clear();
-    graphics.beginFill(0x2d88ff); 
+    graphics.beginFill(color); 
     graphics.lineStyle(3, hasLantern ? 0xffe699 : 0xffffff); 
     graphics.moveTo(0, -20);
     graphics.lineTo(20, 0);
@@ -136,7 +148,7 @@ export function createTokenSprite(id) {
     container.cursor = 'pointer';
 
     const bg = new PIXI.Graphics();
-    drawTokenIcon(bg, false);
+    drawTokenIcon(bg, false, id); // Pass the ID for color picking
     
     const text = new PIXI.Text(id.toString(), {
         fontFamily: 'system-ui',
@@ -358,15 +370,16 @@ export function drawHalos() {
     // Hide halos in prep mode or when the board is locked
     if (document.getElementById('modeSelect').value === 'prep' || state.isMovementLocked) return;
 
-    haloLayer.lineStyle(3, 0x00ffcc, 0.4); // Faint cyan ring
-    
     if (state.tokens && state.tokenSettings) {
-        // NEW: Only draw rings for the active number of players
         for (let i = 1; i <= state.tokenSettings.count; i++) {
             const t = state.tokens[i];
             if (t) {
                 const ox = t.originX !== undefined ? t.originX : t.x;
                 const oy = t.originY !== undefined ? t.originY : t.y;
+                const color = TOKEN_COLORS[i - 1] || 0x00ffcc;
+                
+                // Set the specific color for this token's ring
+                haloLayer.lineStyle(3, color, 0.4); 
                 haloLayer.drawCircle(ox, oy, state.haloRadius || 200);
             }
         }

@@ -3,6 +3,7 @@ import { state } from './state.js';
 import { onValue, set, dbRefs } from './firebase.js';
 import { setupInputs } from './input.js';
 import { setupUI } from './ui.js';
+import { initPopsListener } from "./pops.js";
 import { 
     app, 
     redrawWalls, updateLighting, displayMap, 
@@ -23,8 +24,14 @@ if (container) {
 window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 // 3. Initialize Interactivity
-setupInputs();
-setupUI();
+document.addEventListener("DOMContentLoaded", () => {
+  // Your existing VTT initialization code...
+  setupInputs();
+  setupUI();
+  // Boot POPS Realtime Listener
+  initPopsListener();
+});
+
 
 // 4. Map Firebase Cloud State to Local Engine State
 onValue(dbRefs.walls, (snapshot) => {
@@ -112,7 +119,7 @@ onValue(dbRefs.tokens, (snapshot) => {
         }
         
         state.tokenSprites[i].visible = (i <= state.tokenSettings.count);
-        drawTokenIcon(state.tokenSprites[i].getChildAt(0), state.tokens[i].hasLantern);
+        drawTokenIcon(state.tokenSprites[i].getChildAt(0), state.tokens[i].hasLantern, i);
     }
     updateLighting();
     drawHalos(); // NEW: Redraw halos whenever tokens update

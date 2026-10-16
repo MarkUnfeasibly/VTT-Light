@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lightweight VTT - Multiplayer</title>
-    
+    <!-- Google Fonts for POPS Branding -->
+    <link href="https://fonts.googleapis.com/css2?family=Audiowide&display=swap" rel="stylesheet">
     <!-- We keep PDF.js on CDN to bypass complex Vite worker configurations -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     
@@ -44,6 +45,44 @@
         .divider { border-left: 1px solid #666; height: 24px; margin: 0 5px; }
     </style>
 </head>
+<!-- POPS Shared AI Rule Drawer -->
+<div id="pops-widget" style="position: fixed; top: 20px; right: 20px; width: 360px; height: calc(100vh - 40px); background: #121212; border: 1px solid #27272a; border-radius: 12px; display: flex; flex-direction: column; z-index: 9999; font-family: system-ui, -apple-system, sans-serif; box-shadow: 0 10px 30px rgba(0,0,0,0.7);">
+  
+  <!-- Header with POPS Branding -->
+  <div style="padding: 12px 16px; background: #18181b; border-bottom: 1px solid #27272a; display: flex; justify-content: space-between; align-items: center;">
+    <div>
+      <div style="font-size: 16px; display: flex; align-items: center; gap: 8px;">
+        <span style="color: rgba(255, 89, 0, 1); font-size: 14px;">📟</span>
+        <span class="C9DxTc" style="font-family: 'Audiowide', docs-Audiowide, Arial, sans-serif; font-weight: 700; color: rgba(255, 89, 0, 1); letter-spacing: 1px;">POPS</span>
+      </div>
+      <div style="font-size: 10px; color: #71717a; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">
+        Peripheral Operations & Predictive Synapse
+      </div>
+    </div>
+    <span style="font-size: 10px; background: #27272a; color: #a1a1aa; padding: 2px 6px; border-radius: 4px; border: 1px solid #3f3f46;">v1.0</span>
+  </div>
+
+  <!-- Scrollable Log Entries Stream -->
+  <div id="pops-log-entries" style="flex: 1; padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; font-size: 13px; color: #e4e4e7;">
+    
+    <!-- Initial Lore Splash -->
+    <div style="background: #18181b; border: 1px dashed #3f3f46; padding: 12px; border-radius: 8px; text-align: center; color: #a1a1aa; font-size: 11px; line-height: 1.5; margin-top: 10px;">
+      <div style="font-size: 13px; margin-bottom: 4px;">
+        <span class="C9DxTc" style="font-family: 'Audiowide', docs-Audiowide, Arial, sans-serif; font-weight: 700; color: rgba(255, 89, 0, 1);">POPS</span> ONLINE
+      </div>
+      Predicting outcomes milliseconds before they happen — or, occasionally, weeks after it's far too late.<br><br>
+      <i>Queries sync in real time across all connected crew interfaces.</i>
+    </div>
+
+  </div>
+
+  <!-- Query Input Area -->
+  <div style="padding: 12px; border-top: 1px solid #27272a; background: #18181b; display: flex; gap: 8px;">
+    <input type="text" id="pops-input" placeholder="Query POPS..." style="flex: 1; background: #09090b; color: #f4f4f5; border: 1px solid #3f3f46; padding: 8px 12px; border-radius: 6px; font-size: 13px; outline: none;">
+    <button id="pops-send-btn" style="background: rgba(255, 89, 0, 1); color: #ffffff; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">Query</button>
+  </div>
+</div>
+
 <body>
 
     <div id="controls">
@@ -125,6 +164,12 @@
     </div>
 
     <div id="vtt-container"></div>
+    
+    <div id="zoomControls" style="position: fixed; bottom: 20px; left: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 8px; background: rgba(30, 30, 30, 0.8); padding: 8px; border-radius: 8px; border: 1px solid #555;">
+         <button id="btnZoomIn" style="width: 40px; height: 40px; font-size: 20px; font-weight: bold; cursor: pointer; background: #333; color: white; border: 1px solid #666; border-radius: 4px;">+</button>
+         <button id="btnCenter" style="width: 40px; height: 40px; font-size: 20px; cursor: pointer; background: #333; color: white; border: 1px solid #666; border-radius: 4px;" title="Center Map">⌖</button>
+         <button id="btnZoomOut" style="width: 40px; height: 40px; font-size: 20px; font-weight: bold; cursor: pointer; background: #333; color: white; border: 1px solid #666; border-radius: 4px;">-</button>
+    </div>
 
     <script type="module" src="/src/main.js"></script>
 </body>

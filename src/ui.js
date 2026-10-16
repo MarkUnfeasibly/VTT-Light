@@ -1,11 +1,58 @@
 import { state } from './state.js';
-import { app, mapContainer, fitMapToScreen, redrawWalls, updateLighting, wallLayer, previewLayer, lightMarkerLayer, fowContainer, lightingContainer } from './renderer.js';
+// Combined renderer imports:
+import { 
+    app, mapContainer, fitMapToScreen, redrawWalls, updateLighting, 
+    wallLayer, previewLayer, lightMarkerLayer, fowContainer, lightingContainer,
+    VTT_WIDTH, VTT_HEIGHT 
+} from './renderer.js';
 import { db, set, dbRef, dbRefs, storage, storageRef, uploadBytes, getDownloadURL, get } from './firebase.js';
+import * as PIXI from 'pixi.js';
 
 export function setupUI() {
     // --- FEATURE: MAX MOVE HALO SLIDER ---
     document.getElementById('haloRadiusInput').addEventListener('input', (e) => {
         set(dbRefs.haloRadius, parseInt(e.target.value, 10));
+    });
+    
+    // --- ZOOM AND CENTER OVERLAY CONTROLS ---
+    function applyZoom(zoomFactor) {
+        if (!mapContainer) return;
+        
+        // Find the exact center of the screen
+        const screenCenterX = VTT_WIDTH / 2;
+        const screenCenterY = VTT_HEIGHT / 2;
+        
+        // Translate screen center to the map's local coordinates
+        const localPointer = mapContainer.toLocal(new PIXI.Point(screenCenterX, screenCenterY));
+        
+        // Calculate the new scale and clamp it between 0.1x and 5.0x
+        let newScale = mapContainer.scale.x * zoomFactor;
+        newScale = Math.max(0.1, Math.min(newScale, 5.0));
+        mapContainer.scale.set(newScale);
+
+        // Adjust map position so the point we zoomed into stays dead center
+        mapContainer.x = screenCenterX - localPointer.x * mapContainer.scale.x;
+        mapContainer.y = screenCenterY - localPointer.y * mapContainer.scale.y;
+    }
+
+    document.getElementById('btnZoomIn').addEventListener('click', () => {
+        applyZoom(1.2); // Zoom in by 20%
+    });
+
+    document.getElementById('btnZoomOut').addEventListener('click', () => {
+        applyZoom(0.8); // Zoom out by 20%
+    });
+
+    document.getElementById('btnCenter').addEventListener('click', () => {
+        if (!mapContainer) return;
+        
+        // Reset the container to the true center of the canvas
+        mapContainer.x = VTT_WIDTH / 2;
+        mapContainer.y = VTT_HEIGHT / 2;
+        mapContainer.angle = 0;
+        
+        // Trigger the original fit function to perfectly scale the map to the window boundaries
+        fitMapToScreen();
     });
 
     // --- FEATURE: TOKEN LOCK & TURN RESET ---
