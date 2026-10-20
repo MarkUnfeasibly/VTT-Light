@@ -39,6 +39,7 @@ export function setupInputs() {
                 if (dist2(pt, w.p2) < 100) { state.activeDragWallNode = 'p2'; return; }
             }
 
+            // FIND CLICKED WALL
             let clickedWallIdx = null;
             for (let i = 0; i < state.walls.length; i++) {
                 if (distToSegmentSquared(pt, state.walls[i].p1, state.walls[i].p2) < 64) {
@@ -47,19 +48,20 @@ export function setupInputs() {
                 }
             }
 
+            // SELECT WALL/DOOR
             if (clickedWallIdx !== null) {
-                if (e.shiftKey) {
-                    state.walls.splice(clickedWallIdx, 1);
-                    set(dbRefs.walls, state.walls);
-                    state.activeSelectWallIndex = null;
-                } else {
-                    state.activeSelectWallIndex = clickedWallIdx;
-                    redrawWalls();
+                state.activeSelectWallIndex = clickedWallIdx;
+                redrawWalls();
+                
+                const btnToggle = document.getElementById('btnToggleDoor');
+                if (btnToggle) {
+                    btnToggle.style.display = state.walls[clickedWallIdx].type === 'door' ? 'block' : 'none';
                 }
                 return; 
             }
 
-            if (state.isDrawMode) {
+            // TRIGGER DRAWING (Now checks for both Wall OR Door modes)
+            if (state.isDrawMode || state.isDoorDrawMode) {
                 state.isDrawing = true;
                 state.activeSelectWallIndex = null;
                 redrawWalls();
@@ -70,7 +72,12 @@ export function setupInputs() {
             
             state.activeSelectWallIndex = null;
             redrawWalls();
+            
+            // Hide the toggle door button if we clicked empty space
+            const btnToggle = document.getElementById('btnToggleDoor');
+            if (btnToggle) btnToggle.style.display = 'none';
         }
+
 
         if (!state.isDrawMode) {
             if (state.activeSelectLightId) {
@@ -133,6 +140,9 @@ export function setupInputs() {
             const TOKEN_RADIUS_SQ = 24 * 24;
 
             for (const wall of state.walls) {
+                // NEW: Ignore collision if it is an open door
+                if (wall.type === 'door' && wall.isOpen) continue;
+
                 if (doSegmentsIntersect(oldPos, newPos, wall.p1, wall.p2)) {
                     hasCollision = true;
                     break;
@@ -221,7 +231,10 @@ export function setupInputs() {
         const snap = getSnappedPoint(pt);
         
         if (dist2(state.startPoint, snap.point) > 1) {
-            const newWalls = [...state.walls, { p1: state.startPoint, p2: snap.point }];
+            // Check if door mode is active; otherwise default to 'wall'
+            const geometryType = state.isDoorDrawMode ? 'door' : 'wall';
+            const newWalls = [...state.walls, { p1: state.startPoint, p2: snap.point, type: geometryType, isOpen: false }];
+            
             set(dbRefs.walls, newWalls);
             state.activeSelectWallIndex = newWalls.length - 1; 
             redrawWalls();

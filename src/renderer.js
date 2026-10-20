@@ -223,17 +223,32 @@ export function redrawWalls() {
     wallLayer.visible = isPrepMode;
     if (!isPrepMode) return;
 
-    state.walls.forEach((wall, idx) => {
-        const isSelected = idx === state.activeSelectWallIndex;
-        wallLayer.lineStyle(4, isSelected ? 0x00ff00 : 0x00ffff, 1); 
-        wallLayer.moveTo(wall.p1.x, wall.p1.y);
-        wallLayer.lineTo(wall.p2.x, wall.p2.y);
+    state.walls.forEach((w, index) => {
+        const isSelected = index === state.activeSelectWallIndex;
         
+        // Define line styles based on wall type and open/closed state
+        if (w.type === 'door') {
+            if (w.isOpen) {
+                // Open Door: Faint Yellow line (using return instead of continue if we wanted to skip)
+                wallLayer.lineStyle(isSelected ? 6 : 2, isSelected ? 0xffffff : 0xffff00, 0.4);
+            } else {
+                // Closed Door: Solid Cyan line
+                wallLayer.lineStyle(isSelected ? 6 : 4, isSelected ? 0xffffff : 0x00ffff, 1);
+            }
+        } else {
+            // Standard Wall: Solid Red line
+            wallLayer.lineStyle(isSelected ? 6 : 4, isSelected ? 0xffffff : 0xff0000, 1);
+        }
+
+        wallLayer.moveTo(w.p1.x, w.p1.y);
+        wallLayer.lineTo(w.p2.x, w.p2.y);
+        
+        // Draw the grab-nodes for the currently selected wall/door
         if (isSelected) {
             wallLayer.lineStyle(2, 0xffffff, 1);
             wallLayer.beginFill(0x00ff00, 0.8);
-            wallLayer.drawCircle(wall.p1.x, wall.p1.y, 8);
-            wallLayer.drawCircle(wall.p2.x, wall.p2.y, 8);
+            wallLayer.drawCircle(w.p1.x, w.p1.y, 8);
+            wallLayer.drawCircle(w.p2.x, w.p2.y, 8);
             wallLayer.endFill();
         }
     });
@@ -252,10 +267,11 @@ export function updateLighting() {
         { id: "Left Bound",   p1: { x: -w, y: h * 2 },  p2: { x: -w, y: -h * 2 } }
     ];
 
-    const allWalls = state.walls.concat(bounds);
+    // CRITICAL FIX: Strip out open doors *before* passing geometry to the raycaster
+    const activeBlockers = state.walls.filter(w => !(w.type === 'door' && w.isOpen)).concat(bounds);
     const uniquePoints = [];
     
-    allWalls.forEach(wall => {
+    activeBlockers.forEach(wall => {
         [wall.p1, wall.p2].forEach(pt => {
             const exists = uniquePoints.some(up => Math.abs(up.x - pt.x) < 0.1 && Math.abs(up.y - pt.y) < 0.1);
             if (!exists) uniquePoints.push(pt);
@@ -316,7 +332,9 @@ export function updateLighting() {
         else if (light.type === 'tokenLantern') { tintColor = 0xffe699; tintAlpha = 0.35; }
 
         const originPt = { x: light.x, y: light.y };
-        const maskGraphics = generateRaycastPolygon(originPt, radius, uniquePoints, allWalls);
+        
+        // FIX: Replaced allWalls with activeBlockers
+        const maskGraphics = generateRaycastPolygon(originPt, radius, uniquePoints, activeBlockers);
         const maskGraphicsColor = maskGraphics.clone();
         const gradTexture = getGradientTexture(radius);
 
@@ -343,18 +361,16 @@ export function updateLighting() {
     });
 
     // RENDER TIER 2 (FOG OF WAR MASK)
-    // RENDER TIER 2 (FOG OF WAR MASK)
-    lightingContainer.mask = null; // Ensure base lighting is never masked
+    lightingContainer.mask = null; 
 
     if (!isPrepMode) {
         for (let i = 1; i <= state.tokenSettings.count; i++) {
             if (state.tokens[i]) {
                 const tokenOrigin = { x: state.tokens[i].x, y: state.tokens[i].y };
                 
-                // Generate the infinite line of sight polygon
-                const fowMask = generateRaycastPolygon(tokenOrigin, 4000, uniquePoints, allWalls);
+                // FIX: Replaced allWalls with activeBlockers
+                const fowMask = generateRaycastPolygon(tokenOrigin, 4000, uniquePoints, activeBlockers);
                 
-                // Erase this polygon from the pitch-black fowDarkness layer
                 fowMask.blendMode = PIXI.BLEND_MODES.ERASE; 
                 fowEraseLayer.addChild(fowMask);
             }

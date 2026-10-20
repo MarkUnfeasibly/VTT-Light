@@ -6,169 +6,203 @@
     <title>Lightweight VTT - Multiplayer</title>
     <!-- Google Fonts for POPS Branding -->
     <link href="https://fonts.googleapis.com/css2?family=Audiowide&display=swap" rel="stylesheet">
-    <!-- We keep PDF.js on CDN to bypass complex Vite worker configurations -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     
     <style>
         body {
             margin: 0;
-            padding: 20px;
+            padding: 0;
             font-family: system-ui, -apple-system, sans-serif;
-            background-color: #1e1e1e;
+            background-color: #000000;
             color: #ffffff;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            overflow: hidden; /* Prevent scrolling, let canvas fill screen */
             user-select: none;
         }
-        #controls {
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #2d2d2d;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            max-width: 1200px;
-            justify-content: center;
-        }
-        button { cursor: pointer; padding: 5px 10px; border-radius: 4px; border: 1px solid #555; }
+
         #vtt-container {
-            border: 2px solid #444;
-            border-radius: 4px;
-            overflow: hidden;
+            position: absolute;
+            top: 0;
+            left: 320px; /* Pushes past the GM Menu */
+            width: calc(100vw - 720px); /* Fits exactly between GM and POPS menus */
+            height: 100vh;
             background-color: #000000;
+            z-index: 1;
         }
-        input[type="file"] { color: #fff; }
-        .divider { border-left: 1px solid #666; height: 24px; margin: 0 5px; }
+
+        /* POPS Shared UI Styling */
+        .pops-panel {
+            position: fixed;
+            top: 20px;
+            height: calc(100vh - 40px);
+            background: #121212;
+            border: 1px solid #27272a;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            z-index: 9999;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+        }
+        
+        .pops-header {
+            padding: 12px 16px;
+            background: #18181b;
+            border-bottom: 1px solid #27272a;
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .pops-brand { font-family: 'Audiowide', sans-serif; font-weight: 700; letter-spacing: 1px; }
+        
+        /* GM Widget Specifics */
+        .gm-section {
+            padding: 12px;
+            border-bottom: 1px solid #27272a;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .gm-section h4 { margin: 0 0 5px 0; font-size: 11px; color: #71717a; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        button, select, input[type="file"] {
+            background: #27272a; color: #e4e4e7; border: 1px solid #3f3f46;
+            padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;
+            width: 100%; box-sizing: border-box;
+        }
+        button:hover { background: #3f3f46; }
+        
+        .btn-row { display: flex; gap: 8px; }
+        .input-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #a1a1aa; background: #18181b; padding: 4px 8px; border-radius: 4px; }
+        input[type="range"] { flex: 1; margin-left: 10px; }
     </style>
 </head>
-<!-- POPS Shared AI Rule Drawer -->
-<div id="pops-widget" style="position: fixed; top: 20px; right: 20px; width: 360px; height: calc(100vh - 40px); background: #121212; border: 1px solid #27272a; border-radius: 12px; display: flex; flex-direction: column; z-index: 9999; font-family: system-ui, -apple-system, sans-serif; box-shadow: 0 10px 30px rgba(0,0,0,0.7);">
-  
-  <!-- Header with POPS Branding -->
-  <div style="padding: 12px 16px; background: #18181b; border-bottom: 1px solid #27272a; display: flex; justify-content: space-between; align-items: center;">
-    <div>
-      <div style="font-size: 16px; display: flex; align-items: center; gap: 8px;">
-        <span style="color: rgba(255, 89, 0, 1); font-size: 14px;">📟</span>
-        <span class="C9DxTc" style="font-family: 'Audiowide', docs-Audiowide, Arial, sans-serif; font-weight: 700; color: rgba(255, 89, 0, 1); letter-spacing: 1px;">POPS</span>
-      </div>
-      <div style="font-size: 10px; color: #71717a; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">
-        Peripheral Operations & Predictive Synapse
-      </div>
-    </div>
-    <span style="font-size: 10px; background: #27272a; color: #a1a1aa; padding: 2px 6px; border-radius: 4px; border: 1px solid #3f3f46;">v1.0</span>
-  </div>
-
-  <!-- Scrollable Log Entries Stream -->
-  <div id="pops-log-entries" style="flex: 1; padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; font-size: 13px; color: #e4e4e7;">
-    
-    <!-- Initial Lore Splash -->
-    <div style="background: #18181b; border: 1px dashed #3f3f46; padding: 12px; border-radius: 8px; text-align: center; color: #a1a1aa; font-size: 11px; line-height: 1.5; margin-top: 10px;">
-      <div style="font-size: 13px; margin-bottom: 4px;">
-        <span class="C9DxTc" style="font-family: 'Audiowide', docs-Audiowide, Arial, sans-serif; font-weight: 700; color: rgba(255, 89, 0, 1);">POPS</span> ONLINE
-      </div>
-      Predicting outcomes milliseconds before they happen — or, occasionally, weeks after it's far too late.<br><br>
-      <i>Queries sync in real time across all connected crew interfaces.</i>
-    </div>
-
-  </div>
-
-  <!-- Query Input Area -->
-  <div style="padding: 12px; border-top: 1px solid #27272a; background: #18181b; display: flex; gap: 8px;">
-    <input type="text" id="pops-input" placeholder="Query POPS..." style="flex: 1; background: #09090b; color: #f4f4f5; border: 1px solid #3f3f46; padding: 8px 12px; border-radius: 6px; font-size: 13px; outline: none;">
-    <button id="pops-send-btn" style="background: rgba(255, 89, 0, 1); color: #ffffff; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">Query</button>
-  </div>
-</div>
-
 <body>
 
-    <div id="controls">
-        <select id="modeSelect" style="background: #00509e; color: white; padding: 5px; border-radius: 4px; border: 1px solid #555; font-weight: bold;">
-            <option value="play" selected>🎲 Play Mode</option>
-            <option value="prep">🛠️ Prep Mode</option>
-        </select>
-        
-        <!-- Everything in here will vanish when Play Mode is active -->
-        <div id="gmTools" style="display: none; align-items: center; gap: 10px; flex-wrap: wrap;">
-            <div class="divider"></div>
+    <div id="vtt-container"></div>
 
-            <label for="mapUpload"><strong>Map: </strong></label>
-            <input type="file" id="mapUpload" accept=".png, .jpg, .jpeg, .pdf" />
-            
-            <!-- NEW: Scene Export/Import -->
-            <span id="sceneControls" style="display: flex; gap: 10px; align-items: center;">
-                <div class="divider"></div>
-                <button id="exportScene" style="background: #4a148c; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">💾 Export Scene</button>
-                <label for="importScene" style="background: #4a148c; color: white; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 0.9em;">📂 Import Scene</label>
-                <input type="file" id="importScene" accept=".json" style="display: none;" />
-            </span>
+    <!-- GM COMMAND TERMINAL (Left Side) -->
+    <div id="gm-widget" class="pops-panel" style="left: 20px; width: 280px; overflow-y: auto;">
+        <div class="pops-header">
+            <div>
+                <div style="font-size: 16px; display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #00ffcc; font-size: 14px;">🛠️</span>
+                    <span class="pops-brand" style="color: #00ffcc;">GM_SYS</span>
+                </div>
+                <div style="font-size: 10px; color: #71717a; text-transform: uppercase; margin-top: 2px;">VTT Control Interface</div>
+            </div>
+        </div>
 
-            <!-- ... (rotate buttons and drawControls stay the same) ... -->
-            
-            <button id="rotateCCW">↺ CCW</button>
-            <button id="rotateCW">↻ CW</button>
-            
-            <span id="drawControls" style="display: flex; gap: 10px; align-items: center;">
-                <div class="divider"></div>
-                <button id="toggleDraw" style="background: #444; color: white;">✏️ Draw Walls: OFF</button>
-                <button id="clearWalls" style="background: #444; color: white;">🗑️ Clear Walls</button>
-            </span>
+        <div class="gm-section" style="background: #18181b;">
+            <select id="modeSelect" style="background: #00509e; color: white; font-weight: bold; border: none; font-size: 14px; padding: 8px;">
+                <option value="play" selected>🎲 PLAY MODE</option>
+                <option value="prep">🛠️ PREP MODE</option>
+            </select>
+        </div>
 
-            <span id="lightControls" style="display: flex; gap: 10px; align-items: center;">
-                <div class="divider"></div>
-                <select id="lightTypeSelect" style="background: #2d2d2d; color: white; padding: 5px; border-radius: 4px; border: 1px solid #555;">
+        <div id="gmTools" style="display: none; flex-direction: column;">
+            
+            <div class="gm-section">
+                <h4>Cartography</h4>
+                <input type="file" id="mapUpload" accept=".png, .jpg, .jpeg, .pdf" />
+                <div class="btn-row">
+                    <button id="rotateCCW">↺ CCW</button>
+                    <button id="rotateCW">↻ CW</button>
+                </div>
+                <div class="btn-row">
+                    <button id="exportScene" style="background: #4a148c; border-color: #6a1b9a;">💾 Export</button>
+                    <label for="importScene" style="background: #4a148c; border: 1px solid #6a1b9a; padding: 6px 10px; border-radius: 6px; cursor: pointer; text-align: center; flex: 1; font-size: 12px; color: #e4e4e7;">📂 Import</label>
+                    <input type="file" id="importScene" accept=".json" style="display: none;" />
+                </div>
+            </div>
+
+           <div class="gm-section">
+                <h4>Architecture</h4>
+                <div class="btn-row">
+                    <button id="toggleDraw" style="background: #444; border-color: #1b5e20;">✏️ Wall (OFF)</button>
+                    <button id="toggleDoorDraw" style="background: #444;" title="Draw Doors">🚪 Door (OFF)</button>
+                </div>
+                <!-- This button is hidden until a door is selected -->
+                <button id="btnToggleDoor" style="background: #e65100; border-color: #bf360c; display: none;">🔄 Open/Close Selected Door</button>
+                <button id="clearWalls" style="background: #444;">🗑️ Clear Geometry</button>
+            </div>
+
+            <div class="gm-section">
+                <h4>Lighting System</h4>
+                <select id="lightTypeSelect">
                     <option value="ceiling">🟡 Ceiling Light</option>
                     <option value="emergency">🔴 Emergency Light</option>
                 </select>
-                
-                <div style="display: flex; align-items: center; gap: 8px; background: #333; padding: 2px 8px; border-radius: 4px;">
-                    <label for="lightRadiusInput" style="font-size: 0.9em;">Radius:</label>
+                <div class="input-row">
+                    <span>Radius</span>
                     <input type="range" id="lightRadiusInput" min="50" max="1000" value="400" step="10">
                 </div>
-
-                <button id="toggleLightMode" style="background: #b8860b; color: white; border: none;">💡 Add Lights: OFF</button>
-                <button id="clearLights" style="background: #444; color: white;">🗑️ Clear Lights</button>
-            </span>
-
-            <span id="tokenControls" style="display: flex; gap: 10px; align-items: center;">
-                <div class="divider"></div>
-                <!-- NEW: Lock Button -->
-                <button id="toggleLock" style="background: #b71c1c; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">🔓 Tokens: UNLOCKED</button>
-                <label for="tokenCountSelect" style="font-size: 0.9em;">Players:</label>
-                <select id="tokenCountSelect" style="background: #2d2d2d; color: white; padding: 5px; border-radius: 4px; border: 1px solid #555;">
-                    <!-- ... options ... -->
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
-                    <option value="5">5</option>
-                    <option value="6" selected>6</option>
-              
-                <!-- Inside tokenControls, after the tokenCountSelect -->
-                <div style="display: flex; align-items: center; gap: 8px; background: #333; padding: 2px 8px; border-radius: 4px;">
-                <label for="haloRadiusInput" style="font-size: 0.9em;">Max Move:</label>
-                <input type="range" id="haloRadiusInput" min="50" max="1000" value="200" step="10">
+                <div class="btn-row">
+                    <button id="toggleLightMode" style="background: #b8860b; border-color: #8b6508;">💡 Place Lights</button>
+                    <button id="clearLights" style="background: #444;">🗑️ Clear</button>
                 </div>
-              </select>
-                
-                <div style="display: flex; align-items: center; gap: 8px; background: #333; padding: 2px 8px; border-radius: 4px;">
-                    <label for="tokenRadiusInput" style="font-size: 0.9em;">Torch Radius:</label>
+            </div>
+
+            <div class="gm-section">
+                <h4>Entities</h4>
+                <button id="toggleLock" style="background: #b71c1c; border-color: #7f0000;">🔓 Tokens Unlocked</button>
+                <div class="input-row">
+                    <span>Players</span>
+                    <select id="tokenCountSelect" style="width: 60px; padding: 2px;">
+                        <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                        <option value="4">4</option><option value="5">5</option><option value="6" selected>6</option>
+                    </select>
+                </div>
+                <div class="input-row">
+                    <span>Max Move</span>
+                    <input type="range" id="haloRadiusInput" min="50" max="1000" value="200" step="10">
+                </div>
+                <div class="input-row">
+                    <span>Torch Rad.</span>
                     <input type="range" id="tokenRadiusInput" min="50" max="600" value="250" step="10">
                 </div>
-            </span>
-            <span id="lightHint" style="font-size: 0.8em; color: #aaa; display: none; width: 100%; text-align: center;">(Select a wall or light to edit. Shift+Click or press Delete to remove)</span>
+            </div>
+            
+            <div style="padding: 12px; font-size: 10px; color: #71717a; text-align: center;">
+                (Shift+Click geometry to delete)
+            </div>
         </div>
     </div>
 
-    <div id="vtt-container"></div>
-    
-    <div id="zoomControls" style="position: fixed; bottom: 20px; left: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 8px; background: rgba(30, 30, 30, 0.8); padding: 8px; border-radius: 8px; border: 1px solid #555;">
-         <button id="btnZoomIn" style="width: 40px; height: 40px; font-size: 20px; font-weight: bold; cursor: pointer; background: #333; color: white; border: 1px solid #666; border-radius: 4px;">+</button>
-         <button id="btnCenter" style="width: 40px; height: 40px; font-size: 20px; cursor: pointer; background: #333; color: white; border: 1px solid #666; border-radius: 4px;" title="Center Map">⌖</button>
-         <button id="btnZoomOut" style="width: 40px; height: 40px; font-size: 20px; font-weight: bold; cursor: pointer; background: #333; color: white; border: 1px solid #666; border-radius: 4px;">-</button>
+    <!-- POPS TERMINAL (Right Side - Existing Code unchanged) -->
+    <div id="pops-widget" class="pops-panel" style="right: 20px; width: 360px;">
+        <div class="pops-header">
+            <div>
+                <div style="font-size: 16px; display: flex; align-items: center; gap: 8px;">
+                    <span style="color: rgba(255, 89, 0, 1); font-size: 14px;">📟</span>
+                    <span class="pops-brand" style="color: rgba(255, 89, 0, 1);">POPS</span>
+                </div>
+                <div style="font-size: 10px; color: #71717a; text-transform: uppercase; margin-top: 2px;">Peripheral Operations</div>
+            </div>
+            <span style="font-size: 10px; background: #27272a; color: #a1a1aa; padding: 2px 6px; border-radius: 4px;">v1.0</span>
+        </div>
+        
+        <div id="pops-log-entries" style="flex: 1; padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; font-size: 13px; color: #e4e4e7;">
+            <div style="background: #18181b; border: 1px dashed #3f3f46; padding: 12px; border-radius: 8px; text-align: center; color: #a1a1aa; font-size: 11px; margin-top: 10px;">
+                <div style="font-size: 13px; margin-bottom: 4px;">
+                    <span class="pops-brand" style="color: rgba(255, 89, 0, 1);">POPS</span> ONLINE
+                </div>
+                Predicting outcomes milliseconds before they happen...
+            </div>
+        </div>
+        
+        <div style="padding: 12px; border-top: 1px solid #27272a; background: #18181b; display: flex; gap: 8px; border-radius: 0 0 12px 12px;">
+            <input type="text" id="pops-input" placeholder="Query POPS..." style="flex: 1; background: #09090b; color: #f4f4f5; outline: none;">
+            <button id="pops-send-btn" style="background: rgba(255, 89, 0, 1); color: #ffffff; border: none; font-weight: 600; width: auto;">Query</button>
+        </div>
+    </div>
+
+    <!-- Map Nav Overlay -->
+    <div id="zoomControls" style="position: fixed; bottom: 20px; left: 320px; z-index: 10000; display: flex; gap: 8px; background: rgba(18, 18, 18, 0.9); padding: 8px; border-radius: 8px; border: 1px solid #27272a; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+         <button id="btnZoomIn" style="width: 36px; height: 36px; font-size: 18px; font-weight: bold; padding:0;">+</button>
+         <button id="btnCenter" style="width: 36px; height: 36px; font-size: 18px; padding:0;" title="Center Map">⌖</button>
+         <button id="btnZoomOut" style="width: 36px; height: 36px; font-size: 18px; font-weight: bold; padding:0;">-</button>
     </div>
 
     <script type="module" src="/src/main.js"></script>

@@ -134,41 +134,91 @@ export function setupUI() {
         fitMapToScreen();
     });
 
-    document.getElementById('toggleDraw').addEventListener('click', (e) => {
+  document.getElementById('toggleDraw').addEventListener('click', (e) => {
         state.isDrawMode = !state.isDrawMode;
+        
+        const doorBtn = document.getElementById('toggleDoorDraw');
+        const lightBtn = document.getElementById('toggleLightMode');
+
         if (state.isDrawMode) {
-            state.isLightAddMode = false; 
-            document.getElementById('toggleLightMode').innerText = "💡 Add Lights: OFF";
-            document.getElementById('toggleLightMode').style.background = "#b8860b";
-            document.getElementById('lightHint').style.display = "none";
+            state.isLightAddMode = false;
+            state.isDoorDrawMode = false; // Turn off doors
+            
+            // Force Door button to OFF visual state
+            doorBtn.style.background = "#444";
+            doorBtn.innerText = "🚪 Door (OFF)";
+            lightBtn.style.background = "#27272a";
         } else {
             state.activeSelectWallIndex = null;
             redrawWalls();
         }
         
-        e.target.innerText = state.isDrawMode ? "✏️ Draw Walls: ON" : "✏️ Draw Walls: OFF";
+        // Update Wall button visual state
         e.target.style.background = state.isDrawMode ? "#2e7d32" : "#444";
+        e.target.innerText = state.isDrawMode ? "✏️ Wall" : "✏️ Wall (OFF)";
         app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+    });
+
+    document.getElementById('toggleDoorDraw').addEventListener('click', (e) => {
+        state.isDoorDrawMode = !state.isDoorDrawMode;
+        
+        const wallBtn = document.getElementById('toggleDraw');
+        const lightBtn = document.getElementById('toggleLightMode');
+
+        if (state.isDoorDrawMode) {
+            state.isDrawMode = false;
+            state.isLightAddMode = false;
+            
+            // Force Wall button to OFF visual state
+            wallBtn.style.background = "#444";
+            wallBtn.innerText = "✏️ Wall (OFF)";
+            lightBtn.style.background = "#27272a";
+        } else {
+            state.activeSelectWallIndex = null;
+            redrawWalls();
+        }
+        
+        // Update Door button visual state (Using the same green as walls)
+        e.target.style.background = state.isDoorDrawMode ? "#2e7d32" : "#444";
+        e.target.innerText = state.isDoorDrawMode ? "🚪 Door" : "🚪 Door (OFF)";
+        app.view.style.cursor = state.isDoorDrawMode ? 'crosshair' : 'default';
+    });
+    
+    document.getElementById('btnToggleDoor').addEventListener('click', () => {
+        if (state.activeSelectWallIndex !== null && state.walls[state.activeSelectWallIndex]) {
+            const selectedGeom = state.walls[state.activeSelectWallIndex];
+            
+            if (selectedGeom.type === 'door') {
+                selectedGeom.isOpen = !selectedGeom.isOpen;
+                set(dbRefs.walls, state.walls);
+                redrawWalls();
+                updateLighting();
+            }
+        }
     });
 
     document.getElementById('toggleLightMode').addEventListener('click', (e) => {
         state.isLightAddMode = !state.isLightAddMode;
         
         if (state.isLightAddMode) {
-            state.isDrawMode = false; 
+            state.isDrawMode = false;
+            state.isDoorDrawMode = false;
             state.activeSelectWallIndex = null;
             redrawWalls();
-            document.getElementById('toggleDraw').innerText = "✏️ Draw Walls: OFF";
-            document.getElementById('toggleDraw').style.background = "#444";
             
-            e.target.innerText = "💡 Add Lights: ON";
-            e.target.style.background = "#d4a017";
-            document.getElementById('lightHint').style.display = "inline-block";
+            // Force BOTH architecture buttons to OFF visual state
+            const wallBtn = document.getElementById('toggleDraw');
+            const doorBtn = document.getElementById('toggleDoorDraw');
+            
+            wallBtn.style.background = "#444";
+            wallBtn.innerText = "✏️ Wall (OFF)";
+            doorBtn.style.background = "#444";
+            doorBtn.innerText = "🚪 Door (OFF)";
+            
+            e.target.style.background = "#b8860b";
             app.view.style.cursor = 'crosshair';
         } else {
-            e.target.innerText = "💡 Add Lights: OFF";
-            e.target.style.background = "#b8860b";
-            document.getElementById('lightHint').style.display = "none";
+            e.target.style.background = "#27272a";
             app.view.style.cursor = 'default';
         }
     });
