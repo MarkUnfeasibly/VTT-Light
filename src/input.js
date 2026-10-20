@@ -6,7 +6,9 @@ import { getSnappedPoint, dist2, distToSegmentSquared, doSegmentsIntersect } fro
 
 export function setupInputs() {
     app.stage.eventMode = 'static';
-    app.stage.hitArea = new PIXI.Rectangle(0, 0, app.view.width, app.view.height);
+    // app.screen tracks the renderer size (updated on resize), so pointer
+    // hit-testing always covers the full viewport.
+    app.stage.hitArea = app.screen;
 
     app.stage.on('pointerdown', (e) => {
         if (!state.currentMapSprite) return;

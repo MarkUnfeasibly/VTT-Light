@@ -3,8 +3,19 @@ import { state } from './state.js';
 import { db, set, dbRef } from './firebase.js';
 import { generateRaycastPolygon } from './math.js';
 
-export const VTT_WIDTH = 1024;
-export const VTT_HEIGHT = 768;
+// Viewport tracks the #vtt-container element (the middle grid column), so the
+// map always fills the space between the GM and POPS panels.
+function containerSize() {
+    const el = document.getElementById('vtt-container');
+    return {
+        w: (el && el.clientWidth) || 1024,
+        h: (el && el.clientHeight) || 768
+    };
+}
+
+const initialSize = containerSize();
+export let VTT_WIDTH = initialSize.w;
+export let VTT_HEIGHT = initialSize.h;
 
 export const app = new PIXI.Application({
     width: VTT_WIDTH,
@@ -13,6 +24,31 @@ export const app = new PIXI.Application({
     resolution: window.devicePixelRatio || 1,
     autoDensity: true
 });
+
+// Keep the canvas filling the middle column on window resize / layout change.
+function fitViewportToContainer() {
+    const { w, h } = containerSize();
+    if (w === VTT_WIDTH && h === VTT_HEIGHT) return;
+    VTT_WIDTH = w;
+    VTT_HEIGHT = h;
+    app.renderer.resize(w, h);
+    updateLighting();
+}
+window.addEventListener('resize', fitViewportToContainer);
+
+// Layout changes (e.g. a panel undocking from the grid) also resize the
+// middle column without a window resize — watch it directly. The resize is
+// deferred one frame to avoid a ResizeObserver feedback loop.
+if (window.ResizeObserver) {
+    const vttEl = document.getElementById('vtt-container');
+    let roFrame = null;
+    if (vttEl) {
+        new ResizeObserver(() => {
+            if (roFrame) return;
+            roFrame = requestAnimationFrame(() => { roFrame = null; fitViewportToContainer(); });
+        }).observe(vttEl);
+    }
+}
 
 export const mapContainer = new PIXI.Container();
 mapContainer.x = VTT_WIDTH / 2;

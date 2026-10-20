@@ -4,6 +4,10 @@ import { onValue, set, dbRefs } from './firebase.js';
 import { setupInputs } from './input.js';
 import { setupUI } from './ui.js';
 import { initPopsListener } from "./pops.js";
+import { setupPlayers } from "./players.js";
+import { setupDice } from "./dice.js";
+import { setupPanels } from "./panels.js";
+import { setupSections } from "./sections.js";
 import { 
     app, 
     redrawWalls, updateLighting, displayMap, 
@@ -28,6 +32,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // Your existing VTT initialization code...
   setupInputs();
   setupUI();
+  // Crew manifest (player database) + DICE BAY panel
+  setupPlayers();
+  setupDice();
+  // Draggable panels (positions remembered in the lite database);
+  // section panels are built once panel positions have loaded
+  setupPanels().then(setupSections).catch((e) => console.error('Panel setup failed:', e));
   // Boot POPS Realtime Listener
   initPopsListener();
 });
@@ -74,7 +84,8 @@ onValue(dbRefs.tokenSettings, (snapshot) => {
         return;
     }
     state.tokenSettings = data;
-    document.getElementById('tokenCountSelect').value = state.tokenSettings.count;
+    const tokenCountSel = document.getElementById('tokenCountSelect');
+    if (tokenCountSel) tokenCountSel.value = state.tokenSettings.count;
     document.getElementById('tokenRadiusInput').value = state.tokenSettings.radius;
     
     for (let i = 1; i <= 6; i++) {

@@ -6,6 +6,7 @@ import {
     VTT_WIDTH, VTT_HEIGHT 
 } from './renderer.js';
 import { db, set, dbRef, dbRefs, storage, storageRef, uploadBytes, getDownloadURL, get } from './firebase.js';
+import { isAdminSeated, onPlayerChange } from './players.js';
 import * as PIXI from 'pixi.js';
 
 export function setupUI() {
@@ -245,7 +246,8 @@ export function setupUI() {
         }
     });
 
-    document.getElementById('tokenCountSelect').addEventListener('change', (e) => {
+    const tokenCountSel = document.getElementById('tokenCountSelect'); // optional — removed from the Entities panel
+    if (tokenCountSel) tokenCountSel.addEventListener('change', (e) => {
         const newCount = parseInt(e.target.value, 10);
         set(dbRefs.tokenSettings, { ...state.tokenSettings, count: newCount });
     });
@@ -268,6 +270,63 @@ export function setupUI() {
     });
     const modeSelect = document.getElementById('modeSelect');
     const gmTools = document.getElementById('gmTools');
+
+    // --- ACCESS GATE -------------------------------------------------------
+    // A plain URL (/) is always play-mode only.
+    // An admin URL (/admin_mode, ?admin, ?mode=admin) opens an ADMIN SESSION,
+    // but prep mode only unlocks once a crew member flagged 👑 isAdmin in the
+    // player database is seated. The gate re-evaluates whenever the crew
+    // roster or seat changes (see players.js).
+    if (window.__VTT_ADMIN__) {
+        const modeSection = document.getElementById('modeSection');
+
+        const hint = document.createElement('div');
+        hint.style.cssText = "text-align:center; font-size:10px; color:#f59e0b; padding:2px 0; display:none;";
+        hint.textContent = '👑 Seat an admin crew member to unlock prep mode';
+        if (modeSection) modeSection.appendChild(hint);
+
+        const applyAdminGate = () => {
+            let prepOption = modeSelect.querySelector('option[value="prep"]');
+
+            if (isAdminSeated()) {
+                if (!prepOption) {
+                    prepOption = document.createElement('option');
+                    prepOption.value = 'prep';
+                    prepOption.textContent = '🛠️ PREP MODE';
+                    modeSelect.appendChild(prepOption);
+                }
+                modeSelect.disabled = false;
+                hint.style.display = 'none';
+                if (modeSelect.value !== 'prep') {
+                    modeSelect.value = 'prep'; // admins land in prep mode
+                    modeSelect.dispatchEvent(new Event('change'));
+                }
+            } else {
+                if (prepOption) prepOption.remove();
+                modeSelect.disabled = true;
+                hint.style.display = 'block';
+                if (modeSelect.value !== 'play') {
+                    modeSelect.value = 'play';
+                    modeSelect.dispatchEvent(new Event('change'));
+                }
+            }
+        };
+        onPlayerChange(applyAdminGate); // fires once players.js finishes loading
+        applyAdminGate();
+    } else {
+        // Players: remove the prep option entirely so it can never be selected.
+        // (The select element itself must stay in the DOM — input.js and renderer.js read its value.)
+        const prepOption = modeSelect.querySelector('option[value="prep"]');
+        if (prepOption) prepOption.remove();
+
+        const modeSection = document.getElementById('modeSection');
+        if (modeSection) {
+            const badge = document.createElement('div');
+            badge.style.cssText = "text-align:center; font-size:11px; letter-spacing:0.5px; color:#71717a; padding:4px 0;";
+            badge.innerHTML = '👤 PLAYER · <span style="color:#00ffcc;">PLAY MODE</span>';
+            modeSection.appendChild(badge);
+        }
+    }
 
     modeSelect.addEventListener('change', (e) => {
         const isPrepMode = e.target.value === 'prep';

@@ -17,23 +17,46 @@
             color: #ffffff;
             overflow: hidden; /* Prevent scrolling, let canvas fill screen */
             user-select: none;
+
+            /* Viewport pinned to the top; panels float below/around it */
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 16px;
+            padding: 20px;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        /* The map viewport is itself a panel: pinned to the top of the page,
+           draggable by its header (handled by panels.js). */
+        #viewport-widget {
+            grid-row: 1;
+            position: relative; /* anchor for the in-viewport map nav overlay */
+            height: 58vh;
+            min-height: 240px;
+            display: flex;
+            flex-direction: column;
+            background: #121212;
+            border: 1px solid #27272a;
+            border-radius: 12px;
+            overflow: hidden;
+            z-index: 1;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
         }
 
         #vtt-container {
-            position: absolute;
-            top: 0;
-            left: 320px; /* Pushes past the GM Menu */
-            width: calc(100vw - 720px); /* Fits exactly between GM and POPS menus */
-            height: 100vh;
+            position: relative;
+            flex: 1;
+            min-width: 0;
+            min-height: 0;
             background-color: #000000;
-            z-index: 1;
+            overflow: hidden;
         }
 
         /* POPS Shared UI Styling */
         .pops-panel {
-            position: fixed;
-            top: 20px;
-            height: calc(100vh - 40px);
+            position: fixed;       /* floating panel — positions managed by panels.js */
             background: #121212;
             border: 1px solid #27272a;
             border-radius: 12px;
@@ -42,6 +65,11 @@
             z-index: 9999;
             box-shadow: 0 10px 30px rgba(0,0,0,0.7);
         }
+
+        /* Minimised panels collapse to just their header */
+        .pops-panel.minimized > *:not(.pops-header) { display: none !important; }
+        .pops-panel.minimized { width: auto !important; height: auto !important; bottom: auto !important; max-width: 420px; }
+        .pops-panel.minimized .pops-header { border-radius: 12px; border-bottom: none; }
         
         .pops-header {
             padding: 12px 16px;
@@ -65,6 +93,40 @@
         }
         
         .gm-section h4 { margin: 0 0 5px 0; font-size: 11px; color: #71717a; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* GM_SYS section launchers — each opens its own floating panel.
+           Same base style as every other button; adds a chevron + open state. */
+        .section-launcher {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-align: left;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .section-launcher::after { content: '›'; margin-left: auto; color: #71717a; font-size: 15px; line-height: 1; }
+        .section-launcher.open { background: #3f3f46; border-color: #00ffcc; color: #00ffcc; }
+        .section-launcher.open::after { content: '✕'; font-size: 11px; }
+
+        /* Section panels stay closed until their launcher button is pressed */
+        .section-panel { display: none; }
+
+        /* POPS shudder — visual alert when the panel is minimised and a new
+           message arrives (paired with the futuristic ping in pops.js) */
+        @keyframes pops-shudder {
+            0%, 100% { transform: translateX(0); }
+            10% { transform: translateX(-7px) rotate(-0.6deg); }
+            25% { transform: translateX(6px) rotate(0.6deg); }
+            40% { transform: translateX(-5px); }
+            55% { transform: translateX(4px); }
+            70% { transform: translateX(-2px); }
+            85% { transform: translateX(1px); }
+        }
+        .pops-panel.shudder {
+            animation: pops-shudder 0.6s ease-in-out;
+            border-color: #ff5900;
+            box-shadow: 0 0 18px rgba(255, 89, 0, 0.55);
+        }
         
         button, select, input[type="file"] {
             background: #27272a; color: #e4e4e7; border: 1px solid #3f3f46;
@@ -76,14 +138,71 @@
         .btn-row { display: flex; gap: 8px; }
         .input-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #a1a1aa; background: #18181b; padding: 4px 8px; border-radius: 4px; }
         input[type="range"] { flex: 1; margin-left: 10px; }
+
+        /* Vertical resize grip (panels marked data-resize="height", e.g. POPS) */
+        .panel-resize-handle {
+            position: absolute; left: 0; right: 0; bottom: 0; height: 12px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: ns-resize; touch-action: none; user-select: none; z-index: 5;
+        }
+        .panel-resize-handle::after {
+            content: ''; width: 42px; height: 4px; border-radius: 2px;
+            background: #3f3f46; opacity: 0.6;
+            transition: background 0.15s, opacity 0.15s;
+        }
+        .panel-resize-handle:hover::after { background: #00ffcc; opacity: 1; }
+
+        /* Access gate: players never see the mode selector (set by inline script below) */
+        #modeSelect { display: none; }
+        html.admin #modeSelect { display: block; }
+
+        /* Crew Manifest is admin-only (admin URL session — see access gate) */
+        html.player #crew-widget { display: none !important; }
     </style>
+    <script>
+        // --- ACCESS GATE -------------------------------------------------------
+        // Prep mode is only available when the URL targets admin, e.g.:
+        //   http://localhost:5173/admin_mode
+        //   http://localhost:5173/admin
+        //   http://localhost:5173/?admin
+        //   http://localhost:5173/?mode=admin
+        // Anyone else gets a play-mode-only session.
+        (function () {
+            var path = location.pathname.toLowerCase();
+            var params = new URLSearchParams(location.search);
+            var isAdmin = /\/admin(_mode)?(\/|$)/.test(path)
+                || params.has('admin')
+                || (params.get('mode') || '').toLowerCase() === 'admin';
+            window.__VTT_ADMIN__ = isAdmin;
+            document.documentElement.className = isAdmin ? 'admin' : 'player';
+        })();
+        // ------------------------------------------------------------------------
+    </script>
 </head>
 <body>
 
-    <div id="vtt-container"></div>
+    <!-- MAP VIEWPORT PANEL (pinned to the top; drag its header to move) -->
+    <div id="viewport-widget">
+        <div class="pops-header" id="viewport-header">
+            <div>
+                <div style="font-size: 16px; display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #38bdf8; font-size: 14px;">🗺️</span>
+                    <span class="pops-brand" style="color: #38bdf8;">MAP VIEWPORT</span>
+                </div>
+            </div>
+        </div>
+        <div id="vtt-container"></div>
+
+        <!-- Map Nav Overlay (travels with the viewport) -->
+        <div id="zoomControls" style="position: absolute; bottom: 12px; right: 12px; z-index: 15000; display: flex; gap: 8px; background: rgba(18, 18, 18, 0.9); padding: 8px; border-radius: 8px; border: 1px solid #27272a; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+             <button id="btnZoomIn" style="width: 36px; height: 36px; font-size: 18px; font-weight: bold; padding:0;">+</button>
+             <button id="btnCenter" style="width: 36px; height: 36px; font-size: 18px; padding:0;" title="Center Map">⌖</button>
+             <button id="btnZoomOut" style="width: 36px; height: 36px; font-size: 18px; font-weight: bold; padding:0;">-</button>
+        </div>
+    </div>
 
     <!-- GM COMMAND TERMINAL (Left Side) -->
-    <div id="gm-widget" class="pops-panel" style="left: 20px; width: 280px; overflow-y: auto;">
+    <div id="gm-widget" class="pops-panel" style="left: 20px; top: calc(58vh + 36px); bottom: 20px; width: 280px; overflow-y: auto;">
         <div class="pops-header">
             <div>
                 <div style="font-size: 16px; display: flex; align-items: center; gap: 8px;">
@@ -94,7 +213,7 @@
             </div>
         </div>
 
-        <div class="gm-section" style="background: #18181b;">
+        <div class="gm-section" style="background: #18181b;" id="modeSection">
             <select id="modeSelect" style="background: #00509e; color: white; font-weight: bold; border: none; font-size: 14px; padding: 8px;">
                 <option value="play" selected>🎲 PLAY MODE</option>
                 <option value="prep">🛠️ PREP MODE</option>
@@ -102,8 +221,16 @@
         </div>
 
         <div id="gmTools" style="display: none; flex-direction: column;">
-            
-            <div class="gm-section">
+
+            <!-- Section launchers — each opens its GM section as a floating panel -->
+            <div class="gm-section" style="background: #18181b;">
+                <button class="section-launcher" data-panel="sec-cartography">📐 Cartography</button>
+                <button class="section-launcher" data-panel="sec-architecture">🧱 Architecture</button>
+                <button class="section-launcher" data-panel="sec-lighting">💡 Lighting System</button>
+                <button class="section-launcher" data-panel="sec-entities">🎴 Entities</button>
+            </div>
+
+            <div class="gm-section" id="sec-cartography">
                 <h4>Cartography</h4>
                 <input type="file" id="mapUpload" accept=".png, .jpg, .jpeg, .pdf" />
                 <div class="btn-row">
@@ -117,7 +244,7 @@
                 </div>
             </div>
 
-           <div class="gm-section">
+           <div class="gm-section" id="sec-architecture">
                 <h4>Architecture</h4>
                 <div class="btn-row">
                     <button id="toggleDraw" style="background: #444; border-color: #1b5e20;">✏️ Wall (OFF)</button>
@@ -128,7 +255,7 @@
                 <button id="clearWalls" style="background: #444;">🗑️ Clear Geometry</button>
             </div>
 
-            <div class="gm-section">
+            <div class="gm-section" id="sec-lighting">
                 <h4>Lighting System</h4>
                 <select id="lightTypeSelect">
                     <option value="ceiling">🟡 Ceiling Light</option>
@@ -144,16 +271,9 @@
                 </div>
             </div>
 
-            <div class="gm-section">
+            <div class="gm-section" id="sec-entities">
                 <h4>Entities</h4>
                 <button id="toggleLock" style="background: #b71c1c; border-color: #7f0000;">🔓 Tokens Unlocked</button>
-                <div class="input-row">
-                    <span>Players</span>
-                    <select id="tokenCountSelect" style="width: 60px; padding: 2px;">
-                        <option value="1">1</option><option value="2">2</option><option value="3">3</option>
-                        <option value="4">4</option><option value="5">5</option><option value="6" selected>6</option>
-                    </select>
-                </div>
                 <div class="input-row">
                     <span>Max Move</span>
                     <input type="range" id="haloRadiusInput" min="50" max="1000" value="200" step="10">
@@ -168,19 +288,43 @@
                 (Shift+Click geometry to delete)
             </div>
         </div>
+
+    </div>
+
+    <!-- CREW MANIFEST PANEL (local player database) — admin sessions only -->
+    <div id="crew-widget" class="pops-panel" style="left: 316px; top: calc(58vh + 36px); width: 300px; max-height: calc(42vh - 40px); overflow-y: auto;">
+        <div class="pops-header">
+            <div>
+                <div style="font-size: 16px; display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #8b5cf6; font-size: 14px;">👥</span>
+                    <span class="pops-brand" style="color: #8b5cf6;">CREW</span>
+                </div>
+                <div style="font-size: 10px; color: #71717a; text-transform: uppercase; margin-top: 2px;">Crew Manifest v1.0</div>
+            </div>
+        </div>
+
+        <div class="gm-section" style="border-bottom: none;">
+            <div id="crew-list" style="display:flex; flex-direction:column; gap:4px; max-height:220px; overflow-y:auto;"></div>
+            <button id="crew-seat-toggle" style="font-size:11px;">🛅 Take a seat</button>
+            <div id="crew-admin-tools" style="display:none;">
+                <button id="crew-add-btn" style="font-size:11px;">➕ Add Crew</button>
+                <div class="input-row"><span>Discord App ID</span></div>
+                <input type="text" id="crew-discord-client-id" placeholder="Discord Client ID" style="font-size:11px;">
+                <div style="font-size:9px; color:#71717a; text-align:center;">👑 admins unlock prep mode in /admin_mode</div>
+            </div>
+        </div>
     </div>
 
     <!-- POPS TERMINAL (Right Side - Existing Code unchanged) -->
-    <div id="pops-widget" class="pops-panel" style="right: 20px; width: 360px;">
+    <div id="pops-widget" class="pops-panel" data-resize="height" style="right: 20px; top: calc(58vh + 36px); bottom: 20px; width: 360px; max-height: calc(100vh - 40px);">
         <div class="pops-header">
             <div>
                 <div style="font-size: 16px; display: flex; align-items: center; gap: 8px;">
                     <span style="color: rgba(255, 89, 0, 1); font-size: 14px;">📟</span>
                     <span class="pops-brand" style="color: rgba(255, 89, 0, 1);">POPS</span>
                 </div>
-                <div style="font-size: 10px; color: #71717a; text-transform: uppercase; margin-top: 2px;">Peripheral Operations</div>
+                <div style="font-size: 10px; color: #71717a; text-transform: uppercase; margin-top: 2px;">Peripheral Operations v1.0</div>
             </div>
-            <span style="font-size: 10px; background: #27272a; color: #a1a1aa; padding: 2px 6px; border-radius: 4px;">v1.0</span>
         </div>
         
         <div id="pops-log-entries" style="flex: 1; padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; font-size: 13px; color: #e4e4e7;">
@@ -198,11 +342,56 @@
         </div>
     </div>
 
-    <!-- Map Nav Overlay -->
-    <div id="zoomControls" style="position: fixed; bottom: 20px; left: 320px; z-index: 10000; display: flex; gap: 8px; background: rgba(18, 18, 18, 0.9); padding: 8px; border-radius: 8px; border: 1px solid #27272a; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-         <button id="btnZoomIn" style="width: 36px; height: 36px; font-size: 18px; font-weight: bold; padding:0;">+</button>
-         <button id="btnCenter" style="width: 36px; height: 36px; font-size: 18px; padding:0;" title="Center Map">⌖</button>
-         <button id="btnZoomOut" style="width: 36px; height: 36px; font-size: 18px; font-weight: bold; padding:0;">-</button>
+    <!-- DICE BAY (Bottom Right, next to the POPS panel) -->
+    <div id="dice-widget" class="pops-panel" style="right: 400px; top: calc(58vh + 36px); width: 236px;">
+        <div class="pops-header">
+            <div>
+                <div style="font-size: 16px; display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #a78bfa; font-size: 14px;">🎲</span>
+                    <span class="pops-brand" style="color: #a78bfa;">DICE BAY</span>
+                </div>
+            </div>
+        </div>
+        <div style="display: flex; justify-content: center; gap: 4px; padding: 12px 8px;">
+            <poly-die id="die1" sides="6" size="92" color="#0e9f9f"></poly-die>
+            <poly-die id="die2" sides="6" size="92" color="#c2410c"></poly-die>
+        </div>
+    </div>
+
+    <!-- CREW RECORD EDITOR (admin only) -->
+    <div id="player-edit-modal" style="display:none; position:fixed; inset:0; z-index:10001; background:rgba(0,0,0,0.65); align-items:center; justify-content:center;">
+        <div style="background:#18181b; border:1px solid #3f3f46; border-radius:12px; width:330px; max-height:90vh; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; box-shadow:0 10px 40px rgba(0,0,0,0.8);">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="pops-brand" style="color:#00ffcc; font-size:14px;" id="pe-title">EDIT CREW RECORD</span>
+                <button id="pe-cancel-x" style="width:auto; padding:2px 8px; background:#27272a;">✕</button>
+            </div>
+            <label style="font-size:11px; color:#71717a; display:flex; flex-direction:column; gap:4px;">
+                Name *
+                <input type="text" id="pe-name" style="background:#09090b; color:#f4f4f5; border:1px solid #3f3f46; padding:6px 8px; border-radius:6px;">
+            </label>
+            <label style="font-size:11px; color:#71717a; display:flex; flex-direction:column; gap:4px;">
+                Character
+                <input type="text" id="pe-character" style="background:#09090b; color:#f4f4f5; border:1px solid #3f3f46; padding:6px 8px; border-radius:6px;">
+            </label>
+            <label style="font-size:11px; color:#71717a; display:flex; align-items:center; gap:10px;">
+                Token colour
+                <input type="color" id="pe-color" value="#3f3f46" style="width:48px; height:30px; padding:2px; background:#09090b; border:1px solid #3f3f46; border-radius:6px;">
+            </label>
+            <label style="font-size:12px; color:#e4e4e7; display:flex; align-items:center; gap:8px; cursor:pointer;">
+                <input type="checkbox" id="pe-admin" style="width:auto;"> 👑 Admin — unlocks prep mode
+            </label>
+            <div style="border-top:1px solid #27272a; padding-top:8px; display:flex; flex-direction:column; gap:6px;">
+                <div style="font-size:11px; color:#71717a;">Discord account: <span id="pe-discord-status" style="color:#a1a1aa;">not linked</span></div>
+                <input type="text" id="pe-discord-manual" placeholder="Discord handle (manual entry)" style="background:#09090b; color:#f4f4f5; border:1px solid #3f3f46; padding:6px 8px; border-radius:6px; font-size:12px;">
+                <button id="pe-discord-link" style="background:#5865F2; border-color:#4752c4; font-size:11px;">🔗 Link with Discord OAuth</button>
+                <button id="pe-discord-unlink" style="background:#27272a; border-color:#7f0000; color:#f87171; font-size:11px; display:none;">Unlink Discord</button>
+            </div>
+            <div style="display:flex; gap:8px;">
+                <button id="pe-save" style="background:#2e7d32; border-color:#1b5e20; font-weight:600;">💾 Save</button>
+                <button id="pe-cancel" style="background:#27272a; border-color:#3f3f46; color:#a1a1aa;">Cancel</button>
+                <button id="pe-delete" style="background:#27272a; border-color:#7f0000; color:#f87171; margin-left:auto;">🗑 Delete</button>
+            </div>
+        </div>
     </div>
 
     <script type="module" src="/src/main.js"></script>

@@ -8,6 +8,44 @@ const SLM_API_URL = "https://traveller-slm-service-600932660900.us-central1.run.
 
 const popsDbRef = ref(db, "pops_log");
 
+// --- Minimised-panel alert ---------------------------------------------------
+// When POPS is minimised and a new message arrives, the panel shudders and a
+// short "futuristic computer" ping plays (Web Audio — no asset needed).
+let audioCtx = null;
+
+function playPopsAlert() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+    const t0 = audioCtx.currentTime;
+    // Three quick chirps sweeping upward through a band-pass filter.
+    [[660, 0], [880, 0.08], [1320, 0.16]].forEach(([f, dt]) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const flt = audioCtx.createBiquadFilter();
+      flt.type = "bandpass"; flt.frequency.value = f * 2; flt.Q.value = 2;
+      osc.type = "square";
+      osc.frequency.setValueAtTime(f, t0 + dt);
+      osc.frequency.exponentialRampToValueAtTime(f * 1.35, t0 + dt + 0.06);
+      gain.gain.setValueAtTime(0.0001, t0 + dt);
+      gain.gain.exponentialRampToValueAtTime(0.22, t0 + dt + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.10);
+      osc.connect(flt).connect(gain).connect(audioCtx.destination);
+      osc.start(t0 + dt);
+      osc.stop(t0 + dt + 0.12);
+    });
+  } catch (_) { /* audio unavailable */ }
+}
+
+function alertMinimisedPops() {
+  const panel = document.getElementById("pops-widget");
+  if (!panel || !panel.classList.contains("minimized")) return;
+  panel.classList.remove("shudder");
+  void panel.offsetWidth; // restart the animation
+  panel.classList.add("shudder");
+  playPopsAlert();
+}
+
 /**
  * Queries Cloud Run backend with grounded zero-temperature configuration
  */
@@ -41,6 +79,20 @@ async function queryPopsBackend(userQuery) {
     console.error("POPS API Error:", err);
     return "POPS status: Peripheral offline or unresponsive.";
   }
+}
+
+/**
+ * Posts a dice roll result to the shared POPS log so every connected
+ * client sees it in the POPS panel.
+ */
+export async function postRollToPops(playerName, rollText, detail) {
+  await push(popsDbRef, {
+    sender: playerName || "Crew",
+    text: rollText,
+    type: "roll",
+    detail: detail || null,
+    timestamp: Date.now()
+  });
 }
 
 /**
@@ -97,26 +149,68 @@ export function initPopsListener() {
   };
 
   // Realtime Database listener
+  let lastTopKey = null;   // Firebase key of the newest entry seen
+  let firstSnapshot = true;
+
+  const scrollToBottom = () => {
+    const apply = () => { entriesEl.scrollTop = entriesEl.scrollHeight; };
+    // Double rAF: let the new entries lay out before scrolling.
+    requestAnimationFrame(() => requestAnimationFrame(apply));
+    // Fallbacks for throttled/background tabs (where rAF is paused) and
+    // late font/layout shifts.
+    setTimeout(apply, 60);
+    setTimeout(apply, 400);
+  };
+
   onValue(popsDbRef, (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
 
+    const keys = Object.keys(data).sort(); // push keys sort chronologically
     const entries = Object.values(data).sort((a, b) => a.timestamp - b.timestamp);
+    const topKey = keys[keys.length - 1];
+    const incoming = !firstSnapshot && topKey !== lastTopKey;
+    firstSnapshot = false;
+    lastTopKey = topKey;
 
     entriesEl.innerHTML = entries.map((item) => {
       const isPops = item.type === "answer";
+      const isRoll = item.type === "roll";
       const senderDisplay = isPops
         ? `<span class="C9DxTc" style="font-family: 'Audiowide', docs-Audiowide, Arial, sans-serif; font-weight: 700; color: rgba(255, 89, 0, 1);">📟 POPS</span>`
-        : `<span style="font-weight: 600; color: #93c5fd;">${item.sender || 'Crew Member'}</span>`;
+        : `<span style="font-weight: 600; color: #93c5fd;">${item.sender || 'Crew Member'}</span>${isRoll ? ' <span style="color:#a78bfa;">🎲</span>' : ''}`;
+
+      const borderColor = isPops ? 'rgba(255, 89, 0, 1)' : (isRoll ? '#8b5cf6' : '#3b82f6');
+      const bgColor = isPops ? '#1c1917' : (isRoll ? '#1a1826' : '#18181b');
 
       return `
-        <div style="background: ${isPops ? '#1c1917' : '#18181b'}; padding: 10px 12px; border-radius: 8px; border-left: 3px solid ${isPops ? 'rgba(255, 89, 0, 1)' : '#3b82f6'};">
+        <div style="background: ${bgColor}; padding: 10px 12px; border-radius: 8px; border-left: 3px solid ${borderColor};">
           <div style="font-size: 11px; margin-bottom: 4px;">${senderDisplay}</div>
           <div style="white-space: pre-wrap; line-height: 1.5; color: #e4e4e7;">${item.text}</div>
         </div>
       `;
     }).join("");
 
-    entriesEl.scrollTop = entriesEl.scrollHeight;
+    // Most recent messages are what matters — always end up at the newest.
+    scrollToBottom();
+    if (incoming) alertMinimisedPops();
   });
+
+  // Keep the newest entry in view: retry after fonts/layout settle and on load.
+  scrollToBottom();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(scrollToBottom).catch(() => {});
+  window.addEventListener("load", scrollToBottom);
+  window.addEventListener("focus", scrollToBottom);
+
+  // Let the panel flash again on the next arrival.
+  const popsPanel = document.getElementById("pops-widget");
+  if (popsPanel) {
+    popsPanel.addEventListener("animationend", () => popsPanel.classList.remove("shudder"));
+
+    // Content is hidden while minimised, so scroll attempts then are no-ops —
+    // jump to the newest message when the panel is restored.
+    new MutationObserver(() => {
+      if (!popsPanel.classList.contains("minimized")) scrollToBottom();
+    }).observe(popsPanel, { attributes: true, attributeFilter: ["class"] });
+  }
 }
