@@ -14,17 +14,16 @@ session, and unauthenticated reads/writes are rejected with `401`.
 | 1 | [Give Jason project access](#1-give-jason-project-access) | ✅ done |
 | 2 | [Enable Email/Password sign-in](#2-enable-emailpassword-sign-in) | ✅ done |
 | 3 | [Authorised domains](#3-authorised-domains) | ✅ done |
-| 4 | [Enable the Discord sign-in (optional)](#4-enable-the-discord-sign-in-optional) | ⬜ **outstanding — needs Mark** |
+| 4 | [Discord sign-in](#4-discord-sign-in-deliberately-skipped) | ⏭️ **skipped by decision** |
 | 5 | [Create the bridge service account](#5-create-the-bridge-service-account) | ✅ done |
 | 6 | [Publish the new rules](#6-publish-the-new-rules) | ✅ done |
 | 7 | [Verify](#7-verify) | ✅ done |
 | 8 | [Troubleshooting](#troubleshooting) | reference |
 | 9 | [Rollback](#rollback) | reference |
 
-**Only step 4 remains**, and it is optional: it needs the Discord *Client
-Secret* from the POPS Relay app, which only Mark can read. Until then the
-*Continue with Discord* button shows a "not switched on in Firebase yet"
-notice and everyone signs in with email/password, which works.
+**Step 4 is deliberately skipped** — see [below](#4-discord-sign-in-deliberately-skipped).
+It needs the Identity Platform upgrade (billing), and it is optional: everyone
+signs in with email/password, which works. **Nothing else is outstanding.**
 
 Completed on 2026-10-21, verified at the time of writing:
 
@@ -69,36 +68,54 @@ Confirm these are listed (they normally are):
 - `vtt-light.firebaseapp.com` — the deployed app
 - your hosting domain, if you added a custom one
 
-## 4. Enable the Discord sign-in (optional)
+## 4. Discord sign-in (deliberately skipped)
 
-**Status: ⬜ outstanding — only Mark can finish this.** The provider needs the
-Discord *Client Secret*, which lives in the POPS Relay app under Mark's Discord
-account. Everything else below is ready to paste.
+**Status: ⏭️ skipped by decision (2026-10-21).** Not outstanding — a conscious
+choice, recorded here so nobody re-opens it by accident.
 
-Firebase has **no built-in Discord provider**, so Discord is added as a
-generic OpenID Connect provider. Until this is done email/password still works
-— only the *Continue with Discord* button is inactive (it shows a "not switched
-on in Firebase yet" notice).
+Discord has no *native* Firebase provider, so it must be added as a generic
+**OpenID Connect** provider. In the Firebase console that option is gated behind
+the **Identity Platform upgrade**, which is a pay-as-you-go (billing-enabled)
+change to the whole project. At this scale the cost would be ~£0, but it means
+attaching a card, and it only buys a login convenience.
 
-> **Authentication → Sign-in method → Add provider → OpenID Connect**
+Decision: **not worth it.** Email/password delivers everything the login gate
+needs — sign-in required before the map loads, personal seats, one game master.
+Discord *chat relay* (`@POPS`, POPS mirroring) is unaffected: that runs on the
+Discord bot token, not on login.
 
-| Field | Value |
-| --- | --- |
-| Provider ID | `discord.com` |
-| Client ID | `1562216515313340506` (the *POPS Relay* Discord app) |
-| Client secret | Discord Developer Portal → **POPS Relay** → OAuth2 → **Client Secret** (Mark has this) |
-| Issuer URL | `https://discord.com` |
+The *Continue with Discord* button stays on the login screen and reports
+*"Discord sign-in isn't switched on in Firebase yet — use the form below"*. This
+is intentional, not a bug.
 
-Then tell Discord where the callback goes:
+### If it is ever wanted
 
-> Discord Developer Portal → **POPS Relay** → OAuth2 → **Redirects → Add**:
+Everything is prepared; only the console step is missing.
 
-- `https://vtt-light.firebaseapp.com/__/auth/handler`
-- `http://localhost:5173/__/auth/handler`
+1. Firebase console → upgrade the project to **Identity Platform**.
+2. **Authentication → Sign-in method → Add provider → OpenID Connect**:
 
-**Custom claims (leave empty).** Save, then test the button. If Firebase
-rejects the OIDC discovery document, email/password still works and we can
-retry with a differently-shaped provider — say so and we'll debug together.
+   | Field | Value |
+   | --- | --- |
+   | Provider ID | `discord.com` |
+   | Client ID | `1562216515313340506` (the *POPS Relay* Discord app) |
+   | Client secret | Discord Developer Portal → **POPS Relay** → OAuth2 → Client Secret |
+   | Issuer URL | `https://discord.com` |
+
+   Leave **Custom claims** empty. Discord's discovery document at
+   `https://discord.com/.well-known/openid-configuration` is valid OIDC
+   (issuer `https://discord.com`, RS256), so the provider resolves.
+3. Discord Developer Portal → **POPS Relay** → OAuth2 → **Redirects → Add**:
+
+   - `https://vtt-light.firebaseapp.com/__/auth/handler`
+   - `http://localhost:5173/__/auth/handler`
+
+4. No code change is needed — `src/auth.js` already calls
+   `new OAuthProvider("discord.com")` with `prompt: identify`.
+
+A free alternative (no billing) would be minting Firebase **custom tokens**
+from a small service that verifies Discord ownership. That is real work and was
+also declined.
 
 ## 5. Create the bridge service account
 
