@@ -1,28 +1,43 @@
-# Firebase setup — what Mark needs to do
+# Firebase setup — status and remaining work
 
 **Project:** `vtt-light` — https://console.firebase.google.com/project/vtt-light
 
-VTT-Light now has a **login gate** (nobody sees the map until they sign in) and a
+VTT-Light has a **login gate** (nobody sees the map until they sign in) and a
 **shared crew roster** stored in the Firebase Realtime Database (`crew/<id>`).
-The code is done and pushed; the Firebase *console* side is the part only the
-project owner can do. Until the steps below are finished the login screen
-appears but is **cosmetic** — the database is still open to the world.
+The database is now **locked down**: every path requires an authenticated
+session, and unauthenticated reads/writes are rejected with `401`.
 
-Checklist of contents:
+## Status
 
-1. [Give Jason project access](#1-give-jason-project-access)
-2. [Enable Email/Password sign-in](#2-enable-emailpassword-sign-in)
-3. [Authorised domains](#3-authorised-domains)
-4. [Enable the Discord sign-in (optional)](#4-enable-the-discord-sign-in-optional)
-5. [Create the bridge service account](#5-create-the-bridge-service-account)
-6. [Publish the new rules (the step that makes it real)](#6-publish-the-new-rules-the-step-that-makes-it-real)
-7. [Verify](#7-verify)
-8. [Troubleshooting](#troubleshooting)
-9. [Rollback](#rollback)
+| # | Step | State |
+| --- | --- | --- |
+| 1 | [Give Jason project access](#1-give-jason-project-access) | ✅ done |
+| 2 | [Enable Email/Password sign-in](#2-enable-emailpassword-sign-in) | ✅ done |
+| 3 | [Authorised domains](#3-authorised-domains) | ✅ done |
+| 4 | [Enable the Discord sign-in (optional)](#4-enable-the-discord-sign-in-optional) | ⬜ **outstanding — needs Mark** |
+| 5 | [Create the bridge service account](#5-create-the-bridge-service-account) | ✅ done |
+| 6 | [Publish the new rules](#6-publish-the-new-rules) | ✅ done |
+| 7 | [Verify](#7-verify) | ✅ done |
+| 8 | [Troubleshooting](#troubleshooting) | reference |
+| 9 | [Rollback](#rollback) | reference |
+
+**Only step 4 remains**, and it is optional: it needs the Discord *Client
+Secret* from the POPS Relay app, which only Mark can read. Until then the
+*Continue with Discord* button shows a "not switched on in Firebase yet"
+notice and everyone signs in with email/password, which works.
+
+Completed on 2026-10-21, verified at the time of writing:
+
+- unauthenticated `GET`/`POST` to `/`, `/crew`, `/pops_log` → `401`
+- the bridge account reads and writes `pops_log` → `200`
+- the app boots signed in (crew roster loads, seat restored, no console errors)
+- the bridge reconnects as `POPS#9637` and signs in with its own account
 
 ---
 
 ## 1. Give Jason project access
+
+**Status: ✅ done** (Jason has console access and completed steps 2, 3, 5 and 6).
 
 Jason signs in with **thomaj3@gmail.com**. If that Google account cannot see
 the project, the console will only say *you don't have access*.
@@ -33,8 +48,8 @@ the project, the console will only say *you don't have access*.
 
 ## 2. Enable Email/Password sign-in
 
-This is the fallback for players without a Discord account, and the way you
-will sign in too if you don't use Discord.
+**Status: ✅ done.** Players without a Discord account use this, and it is the
+fallback while step 4 is outstanding.
 
 > **Authentication → Sign-in method → Email/Password → Enable → Save**
 
@@ -43,6 +58,8 @@ one* on the login screen. (If you'd rather approve every account, turn off
 *Enable create (sign-up)* and add users yourself under **Users → Add user**.)
 
 ## 3. Authorised domains
+
+**Status: ✅ done** — `localhost` and the Firebase-hosted domain are listed.
 
 > **Authentication → Settings → Authorised domains**
 
@@ -54,9 +71,14 @@ Confirm these are listed (they normally are):
 
 ## 4. Enable the Discord sign-in (optional)
 
+**Status: ⬜ outstanding — only Mark can finish this.** The provider needs the
+Discord *Client Secret*, which lives in the POPS Relay app under Mark's Discord
+account. Everything else below is ready to paste.
+
 Firebase has **no built-in Discord provider**, so Discord is added as a
-generic OpenID Connect provider. Skip this and email/password still works —
-only the *Continue with Discord* button will be dead.
+generic OpenID Connect provider. Until this is done email/password still works
+— only the *Continue with Discord* button is inactive (it shows a "not switched
+on in Firebase yet" notice).
 
 > **Authentication → Sign-in method → Add provider → OpenID Connect**
 
@@ -80,6 +102,10 @@ retry with a differently-shaped provider — say so and we'll debug together.
 
 ## 5. Create the bridge service account
 
+**Status: ✅ done.** Account `bridge@vtt-light.local` exists, its credentials
+are in `bridge/.env`, and the bridge signs in and writes `pops_log` with a
+token (verified: `200` on authenticated read/write).
+
 The Discord bridge (`bridge/`) writes POPS entries to `pops_log` as an
 external Node service. Once the rules require auth (step 6) it needs its own
 Firebase account — otherwise Discord chat stops reaching the app.
@@ -93,14 +119,21 @@ Then add it to `bridge/.env` (git-ignored, local only):
 
 ```
 FIREBASE_EMAIL=bridge@vtt-light.local
-FIREBASE_PASSWORD=<the password you just set>
+FIREBASE_PASSWORD="<the password you just set>"
 ```
+
+**Quote the password.** If it contains a `#`, an unquoted value would be
+silently truncated at the `#` by the dotenv parser and sign-in would fail with
+a confusing "invalid password" error.
 
 Restart the bridge (`npm.cmd start` in `bridge/`). With no credentials the
 bridge runs exactly as before; with credentials it signs in and appends its
 token to every write and to the POPS stream (refreshing it hourly).
 
-## 6. Publish the new rules (the step that makes it real)
+## 6. Publish the new rules
+
+**Status: ✅ done.** Verified live: unauthenticated `GET`/`POST` to `/`,
+`/crew` and `/pops_log` return `401`; the app and the bridge still work.
 
 The rules now live **in this repo** so they are version-controlled:
 
@@ -125,16 +158,28 @@ npx firebase-tools deploy --only database,storage
 > `database.rules.json` → **Publish**.
 > Then Storage → Rules → paste `storage.rules` → **Publish**.
 
-⚠️ **Do step 5 before step 6**, and only do step 6 when Jason is signed into
-the app on his machine — the moment the rules go live, every *unauthenticated*
-client (including the bridge until configured, and any browser tab open
-without a session) loses read/write access.
+⚠️ **Do step 5 before step 6**, and only do step 6 while signed into the app in
+a browser tab — the moment the rules go live, every *unauthenticated* client
+(including the bridge until configured, and any browser tab open without a
+session) loses read/write access.
 
 ## 7. Verify
 
-1. Open the app **signed out** → login screen only, nothing boots behind it.
-2. *Need an account? Create one* → create a test account → the VTT loads.
-3. Sign out (⏻ chip, top-right) → back to the login screen.
+**Status: ✅ done** (2026-10-21).
+
+Checks run against the live project:
+
+| Check | Expected | Result |
+| --- | --- | --- |
+| Signed-out app | Login screen only, nothing boots behind it | ✅ |
+| Sign in with email/password | VTT loads, crew roster reads | ✅ |
+| Sign out (⏻ chip, top-right) | Back to the login screen, seat cleared | ✅ |
+| Unauthenticated `GET`/`POST` `/`, `/crew`, `/pops_log` | Denied | ✅ all `401` |
+| Authenticated (bridge account) read/write `pops_log` | Allowed | ✅ `200`, history intact |
+| Bridge restart | Connects as `POPS#9637`, signs in with its account | ✅ |
+
+Still to confirm by hand (needs a live Discord message):
+
 4. Create a crew record with **Discord user ID `446329123204497408`** on
    Jason's crew row → Discord messages from his account show his crew name in
    POPS.
@@ -151,11 +196,17 @@ without a session) loses read/write access.
 | *"auth/configuration-not-found"* / OIDC errors | Discord provider missing or wrong ID/secret/issuer (step 4). |
 | Blank app + `401 Unauthorized` in console | Rules were published before a session existed — sign in, or check the session (↻ reload). |
 | Discord chat no longer reaches POPS | Bridge account wrong/expired — check `FIREBASE_EMAIL`/`FIREBASE_PASSWORD` in `bridge/.env` and restart the bridge. |
+| Bridge says "invalid password" but the password is correct | Password contains `#` — quote it in `.env` (`FIREBASE_PASSWORD="p#ss"`), or dotenv treats the rest as a comment. |
 | Crew roster empty for a new player | Their first sign-in creates the record; if not, check `crew` in the database console. |
 | Cannot deploy rules | `firebase login` with the *owner* of `vtt-light`, or ask Mark for Owner/Editor under **Users and permissions**. |
 
 ## Rollback
 
+Undo the lock-down (step 6):
+
 > Realtime Database → **Rules** → set both `read` and `write` back to
-> `true` at the top level → **Publish** (undo step 6), and disable providers
-> if needed. The app itself requires no changes to go back.
+> `true` at the top level → **Publish**, and disable providers if needed. The
+> app itself requires no changes to go back.
+
+The bridge keeps its credentials in `bridge/.env`; they are harmless when the
+rules are open, so no bridge change is needed either way.
