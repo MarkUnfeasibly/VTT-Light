@@ -5,8 +5,11 @@
 //                     client, with the local IndexedDB copy kept as an offline
 //                     cache (and used to migrate records made before the
 //                     shared store existed).
-//   settings      -> IndexedDB only. Panel positions, seat and the Discord
-//                     Client ID are per-browser things.
+//   settings      -> IndexedDB only. Panel positions and the seat are
+//                     per-browser things.
+//   shared config -> Firebase Realtime Database (`config/<key>`), with an
+//                     IndexedDB read-through cache. The Discord Client ID lives
+//                     here so one admin setting it configures everyone.
 //
 // Player record shape:
 //   {
@@ -25,6 +28,7 @@ import { db, dbRef, onValue, get, set } from './firebase.js';
 import { remove } from 'firebase/database';
 
 const CREW_PATH = 'crew';
+const CONFIG_PATH = 'config';
 const DB_NAME = 'vtt-light-db';
 const DB_VERSION = 1;
 const PLAYERS_STORE = 'players';
@@ -204,5 +208,42 @@ export const playerDB = {
     async setSetting(key, value) {
         await withStore(SETTINGS_STORE, 'readwrite', (s) => reqToPromise(s.put({ key, value })));
         return value;
+    },
+
+    // --- shared config -------------------------------------------------------
+    // Survives across browsers: `config/<key>` in the Realtime Database, with
+    // the local settings store kept as a read-through cache for offline use.
+
+    async getSharedSetting(key, fallback = null) {
+        const cloud = await this.readCloudSetting(key);
+        if (cloud.found) {
+            await this.setSetting(key, cloud.value); // refresh the offline cache
+            return cloud.value;
+        }
+        const cached = await this.getSetting(key);
+        return cached === null || cached === undefined ? fallback : cached;
+    },
+
+    /** Reads `config/<key>` straight from the cloud. Never falls back locally. */
+    async readCloudSetting(key) {
+        try {
+            const snap = await get(dbRef(db, `${CONFIG_PATH}/${key}`));
+            const value = snap && snap.val();
+            if (value !== null && value !== undefined) return { found: true, value };
+            return { found: false, value: null };
+        } catch (e) {
+            return { found: false, value: null, error: e && e.message, offline: true };
+        }
+    },
+
+    async setSharedSetting(key, value) {
+        await this.setSetting(key, value); // write locally first, so it sticks offline
+        try {
+            await set(dbRef(db, `${CONFIG_PATH}/${key}`), value);
+            return { shared: true };
+        } catch (e) {
+            console.warn('shared config write failed (kept locally):', e && e.message);
+            return { shared: false, error: e && e.message };
+        }
     }
 };

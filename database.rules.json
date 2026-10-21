@@ -42,6 +42,10 @@
       ".read": "auth != null",
       ".write": "auth != null"
     },
+    "config": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
     "pops_log": {
       ".read": "auth != null",
       ".write": "auth != null",

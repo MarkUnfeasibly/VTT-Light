@@ -5,7 +5,8 @@
 // Setup required (once, by an admin):
 //   1. Create an application at https://discord.com/developers/applications
 //   2. OAuth2 -> add redirect: <your origin><your path>  (e.g. http://localhost:5173/)
-//   3. Paste the Application (Client) ID into the CREW MANIFEST panel -> saved locally.
+//   3. Paste the Application (Client) ID into the CREW MANIFEST panel. It is
+//      stored in the shared Firebase config, so one admin configures everyone.
 //
 import { playerDB } from './playerdb.js';
 
@@ -40,11 +41,16 @@ export function avatarUrl(discordId, avatarHash) {
 }
 
 export async function getDiscordClientId() {
-    return playerDB.getSetting(CLIENT_ID_SETTING);
+    return playerDB.getSharedSetting(CLIENT_ID_SETTING);
 }
 
 export async function setDiscordClientId(clientId) {
-    return playerDB.setSetting(CLIENT_ID_SETTING, (clientId || '').trim());
+    return playerDB.setSharedSetting(CLIENT_ID_SETTING, (clientId || '').trim());
+}
+
+/** True when the Client ID is present in the SHARED config (not just locally). */
+export async function hasSharedDiscordClientId() {
+    return (await playerDB.readCloudSetting(CLIENT_ID_SETTING)).found;
 }
 
 /**
@@ -54,7 +60,13 @@ export async function setDiscordClientId(clientId) {
 export async function startDiscordLink(playerId) {
     const clientId = await getDiscordClientId();
     if (!clientId) {
-        alert('No Discord Client ID configured.\nAn admin must save the Application (Client) ID in the CREW MANIFEST panel first.');
+        alert(
+            'Discord linking is not set up yet.\n\n' +
+            'An admin must paste the Application (Client) ID into the ' +
+            'CREW MANIFEST panel (Discord App ID field).\n\n' +
+            'Alternatively, type a Discord username or numeric user ID into ' +
+            'the "Discord account" box and save — no setup needed.'
+        );
         return;
     }
     const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));

@@ -16,10 +16,11 @@ session, and unauthenticated reads/writes are rejected with `401`.
 | 3 | [Authorised domains](#3-authorised-domains) | ✅ done |
 | 4 | [Discord sign-in](#4-discord-sign-in-deliberately-skipped) | ⏭️ **skipped by decision** |
 | 5 | [Create the bridge service account](#5-create-the-bridge-service-account) | ✅ done |
-| 6 | [Publish the new rules](#6-publish-the-new-rules) | ✅ done |
+| 6 | [Publish the new rules](#6-publish-the-new-rules) | ⚠️ **re-publish needed** (new `config` path) |
 | 7 | [Verify](#7-verify) | ✅ done |
-| 8 | [Troubleshooting](#troubleshooting) | reference |
-| 9 | [Rollback](#rollback) | reference |
+| 8 | [Discord account linking](#8-discord-account-linking-crew-records) | ⚙️ **code ready — needs Client ID + rules** |
+| — | [Troubleshooting](#troubleshooting) | reference |
+| — | [Rollback](#rollback) | reference |
 
 **Step 4 is deliberately skipped** — see [below](#4-discord-sign-in-deliberately-skipped).
 It needs the Identity Platform upgrade (billing), and it is optional: everyone
@@ -149,10 +150,14 @@ token to every write and to the POPS stream (refreshing it hourly).
 
 ## 6. Publish the new rules
 
-**Status: ✅ done.** Verified live: unauthenticated `GET`/`POST` to `/`,
-`/crew` and `/pops_log` return `401`; the app and the bridge still work.
+**Status: ⚠️ needs re-publishing.** The original publish was verified live
+(unauthenticated `GET`/`POST` to `/`, `/crew` and `/pops_log` returned `401`),
+but a **`config` path has since been added** to `database.rules.json` for the
+shared Discord Client ID. Until the rules are re-published, `config` is not
+readable or writable, so the Discord App ID only saves in one browser (the
+panel shows an amber warning saying exactly this).
 
-The rules now live **in this repo** so they are version-controlled:
+The rules live **in this repo** so they are version-controlled:
 
 - `database.rules.json` — every path requires `auth != null`
   (plus `.indexOn: ["timestamp"]` on `pops_log`, which also makes the Discord
@@ -203,7 +208,42 @@ Still to confirm by hand (needs a live Discord message):
 5. Send `hello` in `#general` → it appears in POPS (bridge authenticated).
 6. Ask `@POPS <question>` in Discord → AI answer lands back in Discord and POPS.
 
-## Recovering the game master
+## 8. Discord account linking (crew records)
+
+**Status: ⚙️ code ready — needs the Client ID pasted in, and the rules re-published.**
+
+This is a **third, separate** Discord integration from the chat relay:
+
+| Integration | Credential | Status |
+| --- | --- | --- |
+| Chat relay (Discord ↔ POPS) | Bot token | ✅ running |
+| Sign-in screen "with Discord" | Client ID **+ secret** | ❌ blocked (needs Identity Platform billing) |
+| **Crew record "Discord account"** | Client ID only (PKCE, no secret) | ⚙️ this section |
+
+Linking attaches a Discord username and avatar to a crew record, so the roster
+and roll cards show who is who. It does **not** drive the chat relay and does
+**not** log anyone in.
+
+**Setup (once, by a seated admin):**
+
+1. Re-publish the rules (step 6) so the new `config` path goes live.
+2. Open the app at `/admin_mode` and **take your seat** — the field needs a
+   seated admin, because it is a crew-wide setting.
+3. In the **CREW MANIFEST** panel, paste the **Application (Client) ID** into
+   the **Discord App ID** field and press Enter.
+   - The status line reads **✅ shared with all crew** when it worked.
+   - If it reads **⚠️ saved on this browser only**, step 1 has not been done.
+4. In the Discord Developer Portal → your app → **OAuth2** → **Redirects**, add
+   the exact URL you play on, e.g. `http://localhost:5173/` and your hosted
+   origin. It must match the page you click the button from.
+5. On a crew record, click **🔗 Link Discord** and authorise with `identify`.
+
+**No Client ID needed:** the editor also takes a Discord **username or numeric
+user ID** typed straight into the record. The relay already stamps every
+message with the author's Discord ID (`bridge/index.js`), so this is enough to
+match crew members to messages without any portal work.
+
+
 
 The crown is stored on the **crew record** (`crew/<id>/isAdmin`), which is separate
 from the **account** in Firebase Authentication. Normally only a *seated* admin

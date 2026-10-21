@@ -12,7 +12,7 @@
 
 import { playerDB, newId } from './playerdb.js';
 import { discordIdentity, displayName, getUser } from './auth.js';
-import { startDiscordLink, handleDiscordRedirect, getDiscordClientId, setDiscordClientId, avatarUrl } from './discord.js';
+import { startDiscordLink, handleDiscordRedirect, getDiscordClientId, setDiscordClientId, hasSharedDiscordClientId, avatarUrl } from './discord.js';
 
 const SEAT_KEY = 'vtt_player_name';       // legacy key used by pops.js
 const SEAT_ID_KEY = 'vtt_player_id';
@@ -386,14 +386,62 @@ export async function setupPlayers() {
         console.error('Discord redirect handling failed:', e);
     }
 
-    // 2. Discord Client ID config (admin sessions only).
+    // 2. Discord Client ID config. Stored in the SHARED Firebase config, so
+    //    setting it here configures every crew member — therefore it needs the
+    //    same privilege as prep mode (a seated admin), not just an admin URL.
+    //    Re-evaluated on every seat change (see the onPlayerChange hook below),
+    //    because who is seated changes at runtime.
     if (clientIdInput) {
-        if (isAdminSession()) {
-            clientIdInput.value = (await getDiscordClientId()) || '';
-            clientIdInput.addEventListener('change', async () => {
-                await setDiscordClientId(clientIdInput.value);
+        const clientIdLabel = document.getElementById('crew-discord-client-id-label');
+        const clientIdStatus = document.getElementById('crew-discord-client-id-status');
+
+        const setClientIdStatus = (value, shared) => {
+            if (!clientIdStatus) return;
+            if (!value) {
+                clientIdStatus.textContent = '⬜ not set — Discord linking is off';
+                clientIdStatus.style.color = '#71717a';
+            } else if (shared) {
+                clientIdStatus.textContent = '✅ shared with all crew';
+                clientIdStatus.style.color = '#22c55e';
+            } else {
+                // Saved locally, but the shared config rejected it — most likely
+                // the "config" rules have not been published yet.
+                clientIdStatus.textContent = '⚠️ saved on this browser only — publish the "config" database rules to share';
+                clientIdStatus.style.color = '#f59e0b';
+            }
+        };
+
+        const applyClientIdAccess = async () => {
+            const allowed = isAdminSeated();
+            // Hide the crew-wide setting entirely from anyone who cannot change
+            // it, rather than showing a field that would not take effect.
+            [clientIdInput, clientIdLabel, clientIdStatus].forEach((el) => {
+                if (el) el.style.display = allowed ? '' : 'none';
             });
-        }
+            clientIdInput.disabled = !allowed;
+            if (!allowed) return;
+
+            clientIdInput.value = (await getDiscordClientId()) || '';
+            // Claim "shared" only if the value really is in the shared config.
+            const shared = clientIdInput.value.trim()
+                ? await hasSharedDiscordClientId()
+                : false;
+            setClientIdStatus(clientIdInput.value.trim(), shared);
+        };
+
+        await applyClientIdAccess();
+
+        const saveClientId = async () => {
+            const value = clientIdInput.value.trim();
+            if (value === ((await getDiscordClientId()) || '')) return;
+            const result = await setDiscordClientId(value);
+            setClientIdStatus(value, !!(result && result.shared));
+        };
+        clientIdInput.addEventListener('change', saveClientId); // on blur
+        clientIdInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); clientIdInput.blur(); }
+        });
+        onPlayerChange(() => { applyClientIdAccess().catch(() => {}); });
     }
 
     // 3. Add crew (admin sessions only — button hidden otherwise).
