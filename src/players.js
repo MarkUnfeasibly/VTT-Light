@@ -233,8 +233,13 @@ async function saveEditor() {
     p.character = character;
     p.color = color;
     p.isAdmin = isAdmin;
-    if (!p.discord && manualHandle) {
-        p.discord = { id: null, username: manualHandle, handle: manualHandle, avatar: null };
+    if (manualHandle) {
+        // Accept either a Discord username/handle or the numeric user ID
+        // (the relay stamps every message with the author's Discord ID).
+        const looksLikeId = /^\d{5,}$/.test(manualHandle);
+        p.discord = looksLikeId
+            ? { id: manualHandle, username: manualHandle, handle: null, avatar: null }
+            : { id: null, username: manualHandle, handle: manualHandle, avatar: null };
     }
 
     await playerDB.savePlayer(p);
