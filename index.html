@@ -411,6 +411,37 @@
         </div>
     </div>
 
+    <!-- AUTH: login overlay — the VTT does not boot until a user signs in -->
+    <div id="auth-screen" style="display:flex; position:fixed; inset:0; z-index:40000; align-items:center; justify-content:center; background:radial-gradient(1200px 700px at 50% 15%, #0b1220 0%, #060608 70%); font-family:'Audiowide',Arial,sans-serif;">
+        <div style="width:360px; max-width:92vw; background:#0f0f12; border:1px solid #27272a; border-radius:14px; padding:26px; box-shadow:0 24px 70px rgba(0,0,0,.7);">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+                <span style="font-size:20px;">🗺️</span>
+                <span style="font-size:18px; letter-spacing:.08em; color:#38bdf8;">VTT-LIGHT</span>
+            </div>
+            <div style="font-size:11px; color:#71717a; margin-bottom:18px;">Sign in to open the control interface</div>
+
+            <button id="auth-discord" style="width:100%; background:#5865F2; border:1px solid #4752c4; color:#fff; font-size:12px; padding:10px; border-radius:8px; cursor:pointer;">🎮 Continue with Discord</button>
+
+            <div style="display:flex; align-items:center; gap:10px; margin:14px 0; color:#52525b; font-size:10px; letter-spacing:.1em;">
+                <div style="flex:1; border-top:1px solid #27272a;"></div>OR<div style="flex:1; border-top:1px solid #27272a;"></div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                <input id="auth-email" type="email" placeholder="Email" autocomplete="username" style="background:#09090b; color:#f4f4f5; border:1px solid #3f3f46; padding:9px 10px; border-radius:8px; font-size:12px;">
+                <input id="auth-password" type="password" placeholder="Password" autocomplete="current-password" style="background:#09090b; color:#f4f4f5; border:1px solid #3f3f46; padding:9px 10px; border-radius:8px; font-size:12px;">
+                <button id="auth-submit" style="background:#14532d; border:1px solid #166534; color:#dcfce7; font-size:12px; padding:9px; border-radius:8px; cursor:pointer;">Sign in</button>
+                <button id="auth-toggle" style="background:transparent; border:none; color:#71717a; font-size:11px; cursor:pointer; text-decoration:underline;">Need an account? Create one</button>
+            </div>
+            <div id="auth-error" style="min-height:16px; margin-top:10px; font-size:11px; color:#f87171;"></div>
+        </div>
+    </div>
+
+    <!-- AUTH chip: signed-in identity + sign out -->
+    <div id="auth-chip" style="position:fixed; top:8px; right:12px; z-index:20000; display:none; align-items:center; gap:8px; background:rgba(18,18,18,.9); border:1px solid #27272a; border-radius:999px; padding:4px 6px 4px 12px; font-size:11px; color:#a1a1aa; font-family:'Audiowide',Arial,sans-serif; box-shadow:0 2px 8px rgba(0,0,0,.5);">
+        <span class="auth-chip-name"></span>
+        <button class="auth-chip-out" title="Sign out" style="background:#27272a; border:1px solid #3f3f46; color:#a1a1aa; border-radius:50%; width:20px; height:20px; font-size:11px; cursor:pointer; padding:0;">⏻</button>
+    </div>
+
     <script type="module" src="/src/main.js"></script>
 </body>
 </html>

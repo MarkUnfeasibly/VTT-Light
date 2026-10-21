@@ -18,6 +18,14 @@ const DB_URL = (
   process.env.FIREBASE_DB_URL ||
   "https://vtt-light-default-rtdb.europe-west1.firebasedatabase.app"
 ).replace(/\/+$/, "");
+
+// Optional Firebase Auth — required once the database rules demand
+// `auth != null`. Uses a dedicated account (email/password) and appends
+// `?auth=<idToken>` to every Realtime Database request.
+const FB_API_KEY =
+  process.env.FIREBASE_API_KEY || "AIzaSyBqsawmCM5aqSxegQt3dXErH9XnyqS_0n4"; // public web key
+const FB_EMAIL = (process.env.FIREBASE_EMAIL || "").trim();
+const FB_PASSWORD = (process.env.FIREBASE_PASSWORD || "").trim();
 const RAG_API_URL =
   process.env.RAG_API_URL ||
   "https://traveller-rag-api-600932660900.us-central1.run.app/search";
@@ -51,8 +59,37 @@ const warn = (...args) => console.warn("[bridge]", ...args);
 
 // --- POPS database -----------------------------------------------------------
 
+let idToken = null;
+let idTokenExpires = 0;
+
+/** Returns "?auth=<token>" once credentials are configured, else "". */
+async function firebaseAuthQuery() {
+  if (!FB_EMAIL || !FB_PASSWORD) return "";
+  if (idToken && Date.now() < idTokenExpires) return `?auth=${idToken}`;
+  const res = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FB_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: FB_EMAIL,
+        password: FB_PASSWORD,
+        returnSecureToken: true,
+      }),
+    }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(`Firebase sign-in failed: ${data?.error?.message || res.status}`);
+  }
+  idToken = data.idToken;
+  idTokenExpires = Date.now() + (Number(data.expiresIn) - 60) * 1000;
+  return `?auth=${idToken}`;
+}
+
 async function postPops(entry) {
-  const res = await fetch(`${DB_URL}/pops_log.json`, {
+  const authQuery = await firebaseAuthQuery();
+  const res = await fetch(`${DB_URL}/pops_log.json${authQuery}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ timestamp: Date.now(), ...entry }),
@@ -312,7 +349,8 @@ async function startMirrorLoop() {
   for (;;) {
     try {
       log("opening POPS stream…");
-      const res = await fetch(`${DB_URL}/pops_log.json`, {
+      const authQuery = await firebaseAuthQuery();
+      const res = await fetch(`${DB_URL}/pops_log.json${authQuery}`, {
         headers: { Accept: "text/event-stream" },
       });
       if (!res.ok || !res.body) {

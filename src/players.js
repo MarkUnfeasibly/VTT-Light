@@ -11,6 +11,7 @@
 //   - Prep mode additionally requires the SEATED player to carry isAdmin=true.
 
 import { playerDB, newId } from './playerdb.js';
+import { discordIdentity, displayName } from './auth.js';
 import { startDiscordLink, handleDiscordRedirect, getDiscordClientId, setDiscordClientId, avatarUrl } from './discord.js';
 
 const SEAT_KEY = 'vtt_player_name';       // legacy key used by pops.js
@@ -180,6 +181,38 @@ async function loadPlayers() {
     emit();
 }
 
+/**
+ * Make sure the signed-in user has a crew record: keyed to their Firebase
+ * UID, carrying their Discord identity when they signed in with Discord (the
+ * same id the bridge stamps on relayed chat, so POPS shows their crew name).
+ */
+export async function ensureCrewForUser(user) {
+    if (!user) return null;
+    const list = await playerDB.getAllPlayers();
+    const dp = discordIdentity();
+
+    let p = list.find((x) => x.id === user.uid)
+        || (dp && list.find((x) => x.discord && String(x.discord.id) === dp.id))
+        || null;
+
+    if (!p) {
+        p = {
+            id: user.uid,
+            discord: null,
+            createdAt: Date.now(),
+        };
+    }
+    if (dp) {
+        p.discord = { id: dp.id, username: dp.username, handle: null, avatar: dp.avatar };
+    }
+    if (!p.name) p.name = dp ? dp.username : displayName();
+    p.email = user.email || p.email || null;
+
+    await playerDB.savePlayer(p);
+    await loadPlayers();
+    return p;
+}
+
 // --- CREW RECORD EDITOR (admin modal) --------------------------------------
 let editingId = null;
 
@@ -335,5 +368,15 @@ export async function setupPlayers() {
     // Admin record editor modal
     wireEditor();
 
-    await loadPlayers();
+    // Live roster: crew changes appear on every connected client at once.
+    try {
+        playerDB.subscribePlayers((list) => {
+            players = list;
+            renderCrew();
+            emit();
+        });
+    } catch (e) {
+        console.error('crew subscription failed:', e);
+        await loadPlayers();
+    }
 }

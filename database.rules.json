@@ -1,0 +1,51 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "walls": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "lights": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "light": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "tokens": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "tokenSettings": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "map": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "movementLock": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "haloRadius": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "rolls": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "crew": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "pops_log": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["timestamp"]
+    }
+  }
+}

@@ -1,20 +1,30 @@
-// src/playerdb.js
-// A tiny IndexedDB-backed "lite database" for player details and app settings.
-// No server involved — data lives locally in the browser.
+// /src/playerdb.js
+// Lite database for VTT-Light.
+//
+//   crew records  -> Firebase Realtime Database (`crew/<id>`), shared by every
+//                     client, with the local IndexedDB copy kept as an offline
+//                     cache (and used to migrate records made before the
+//                     shared store existed).
+//   settings      -> IndexedDB only. Panel positions, seat and the Discord
+//                     Client ID are per-browser things.
 //
 // Player record shape:
 //   {
-//     id: string,             // uuid
+//     id: string,             // Firebase UID (or uuid for pre-login records)
 //     name: string,           // display name (seat name)
 //     character: string,      // optional character name
 //     color: string,          // token colour hint
 //     isAdmin: boolean,       // PREP MODE privilege flag
-//     discord: {              // populated by the Discord link flow
+//     discord: {              // Discord identity (from sign-in or manual entry)
 //       id, username, handle, avatar
 //     } | null,
 //     createdAt, updatedAt
 //   }
 
+import { db, dbRef, onValue, get, set } from './firebase.js';
+import { remove } from 'firebase/database';
+
+const CREW_PATH = 'crew';
 const DB_NAME = 'vtt-light-db';
 const DB_VERSION = 1;
 const PLAYERS_STORE = 'players';
@@ -59,30 +69,112 @@ export function newId() {
     return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
 }
 
+// --- local cache -------------------------------------------------------------
+
+function sortPlayers(list) {
+    return (list || []).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+}
+
+async function localGetAll() {
+    const list = await withStore(PLAYERS_STORE, 'readonly', (s) => reqToPromise(s.getAll()));
+    return list || [];
+}
+
+async function localPut(player) {
+    await withStore(PLAYERS_STORE, 'readwrite', (s) => reqToPromise(s.put(player)));
+}
+
+async function localDelete(id) {
+    await withStore(PLAYERS_STORE, 'readwrite', (s) => reqToPromise(s.delete(id)));
+}
+
+/** Mirror the shared roster into IndexedDB so offline visits still work. */
+async function mirrorLocal(list) {
+    for (const p of list) {
+        try { await localPut(p); } catch (e) { console.error('crew cache write failed:', e); }
+    }
+    try {
+        const keep = new Set(list.map((p) => p.id));
+        const local = await localGetAll();
+        for (const p of local) {
+            if (!keep.has(p.id)) await localDelete(p.id);
+        }
+    } catch (e) { /* cache maintenance is best-effort */ }
+}
+
+// --- shared (Firebase) roster ------------------------------------------------
+
+let migrated = false;
+
+async function pullFromCloud() {
+    const snap = await get(dbRef(db, CREW_PATH));
+    const cloud = (snap && snap.val()) || {};
+
+    // One-time migration: publish crew records created before the shared
+    // store existed. Ids are UUIDs/UIDs, so this is idempotent.
+    if (!migrated) {
+        migrated = true;
+        const local = await localGetAll();
+        for (const p of local) {
+            if (!cloud[p.id]) {
+                cloud[p.id] = p;
+                await set(dbRef(db, `${CREW_PATH}/${p.id}`), p);
+            }
+        }
+    }
+
+    await mirrorLocal(Object.values(cloud));
+    return sortPlayers(Object.values(cloud));
+}
+
 export const playerDB = {
     async getAllPlayers() {
-        const list = await withStore(PLAYERS_STORE, 'readonly', (s) => reqToPromise(s.getAll()));
-        return (list || []).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        try {
+            return await pullFromCloud();
+        } catch (e) {
+            console.warn('crew DB offline, using local cache:', e && e.message);
+            return sortPlayers(await localGetAll());
+        }
     },
 
     async getPlayer(id) {
-        return withStore(PLAYERS_STORE, 'readonly', (s) => reqToPromise(s.get(id))) || null;
+        const all = await this.getAllPlayers();
+        return all.find((p) => p.id === id) || null;
     },
 
     async savePlayer(player) {
         player.updatedAt = Date.now();
         if (!player.createdAt) player.createdAt = player.updatedAt;
-        await withStore(PLAYERS_STORE, 'readwrite', (s) => reqToPromise(s.put(player)));
+        try {
+            await set(dbRef(db, `${CREW_PATH}/${player.id}`), player);
+        } catch (e) {
+            console.warn('crew save queued locally (DB unreachable):', e && e.message);
+        }
+        await localPut(player);
         return player;
     },
 
     async deletePlayer(id) {
-        await withStore(PLAYERS_STORE, 'readwrite', (s) => reqToPromise(s.delete(id)));
+        try {
+            await remove(dbRef(db, `${CREW_PATH}/${id}`));
+        } catch (e) {
+            console.warn('crew delete pending (DB unreachable):', e && e.message);
+        }
+        await localDelete(id);
     },
 
     async anyAdminExists() {
         const all = await this.getAllPlayers();
         return all.some((p) => p.isAdmin === true);
+    },
+
+    /** Live roster updates for every connected client. Returns an unsubscribe. */
+    subscribePlayers(cb) {
+        return onValue(dbRef(db, CREW_PATH), (snap) => {
+            const list = sortPlayers(Object.values((snap && snap.val()) || {}));
+            mirrorLocal(list).catch(() => {});
+            cb(list);
+        });
     },
 
     async getSetting(key) {
