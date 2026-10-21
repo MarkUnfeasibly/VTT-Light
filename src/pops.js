@@ -1,12 +1,57 @@
 // /src/pops.js
 import { db } from "./firebase.js"; // Corrected export name from firebase.js
 import { ref, push, onValue } from "firebase/database";
+import { playerDB } from "./playerdb.js";
+import { onPlayerChange } from "./players.js";
 
 const RAG_API_URL = "https://traveller-rag-api-600932660900.us-central1.run.app/search";
 // Update this URL if your SLM service URL differs
 const SLM_API_URL = "https://traveller-slm-service-600932660900.us-central1.run.app/api/generate";
 
 const popsDbRef = ref(db, "pops_log");
+
+/** Messages can arrive from Discord, so never trust them as HTML. */
+const escapeHtml = (value) =>
+  String(value ?? "").replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
+  );
+
+// --- Discord name -> crew member lookup -------------------------------------
+// The bridge stamps each relayed message with the author's Discord ID. If that
+// person has a crew record with a linked Discord account (or a manual
+// username/ID), POPS shows their crew name instead of the Discord handle.
+
+const DISCORD_EMOJI = "⌁";
+let crewByDiscord = new Map();
+let crewIndexAt = 0;
+
+async function refreshCrewIndex(force) {
+  const now = Date.now();
+  if (!force && now - crewIndexAt < 5000) return;
+  crewIndexAt = now;
+  try {
+    const players = await playerDB.getAllPlayers();
+    const map = new Map();
+    for (const p of players || []) {
+      const d = p.discord;
+      if (!d) continue;
+      if (d.id) map.set(String(d.id), p);
+      if (d.handle) map.set(String(d.handle).toLowerCase(), p);
+      if (d.username) map.set(String(d.username).toLowerCase(), p);
+    }
+    crewByDiscord = map;
+  } catch (_) {
+    /* local DB unavailable — fall back to raw Discord handles */
+  }
+}
+
+function crewForDiscord(item) {
+  const byId = item.discordId ? crewByDiscord.get(String(item.discordId)) : null;
+  if (byId) return byId;
+  const byName = crewByDiscord.get(String(item.sender || "").toLowerCase());
+  return byName || null;
+}
 
 // --- Minimised-panel alert ---------------------------------------------------
 // When POPS is minimised and a new message arrives, the panel shudders and a
@@ -135,6 +180,11 @@ export function initPopsListener() {
 
   const playerName = localStorage.getItem("vtt_player_name") || "Crew";
 
+  // Resolve Discord authors to crew members (throttled inside).
+  refreshCrewIndex(true);
+  // Keep the index fresh when an admin edits the crew manifest.
+  onPlayerChange(() => refreshCrewIndex(true));
+
   // Event handlers
   const handleSend = async () => {
     const q = inputEl.value.trim();
@@ -168,6 +218,7 @@ export function initPopsListener() {
 
     const keys = Object.keys(data).sort(); // push keys sort chronologically
     const entries = Object.values(data).sort((a, b) => a.timestamp - b.timestamp);
+    if (entries.some((e) => e.type === "discord")) refreshCrewIndex();
     const topKey = keys[keys.length - 1];
     const incoming = !firstSnapshot && topKey !== lastTopKey;
     firstSnapshot = false;
@@ -176,17 +227,19 @@ export function initPopsListener() {
     entriesEl.innerHTML = entries.map((item) => {
       const isPops = item.type === "answer";
       const isRoll = item.type === "roll";
+      const isDiscord = item.type === "discord";
+      const crew = isDiscord ? crewForDiscord(item) : null;
       const senderDisplay = isPops
         ? `<span class="C9DxTc" style="font-family: 'Audiowide', docs-Audiowide, Arial, sans-serif; font-weight: 700; color: rgba(255, 89, 0, 1);">📟 POPS</span>`
-        : `<span style="font-weight: 600; color: #93c5fd;">${item.sender || 'Crew Member'}</span>${isRoll ? ' <span style="color:#a78bfa;">🎲</span>' : ''}`;
+        : `<span style="font-weight: 600; color: ${crew ? '#00ffcc' : '#93c5fd'};">${escapeHtml(crew ? crew.name : (item.sender || 'Crew Member'))}</span>${isRoll ? ' <span style="color:#a78bfa;">🎲</span>' : ''}${isDiscord ? ` <span style="color:#818cf8; font-size:10px; letter-spacing:.06em;">${DISCORD_EMOJI} ${escapeHtml(crew ? (item.sender || '') : 'DISCORD')}</span>` : ''}`;
 
-      const borderColor = isPops ? 'rgba(255, 89, 0, 1)' : (isRoll ? '#8b5cf6' : '#3b82f6');
-      const bgColor = isPops ? '#1c1917' : (isRoll ? '#1a1826' : '#18181b');
+      const borderColor = isPops ? 'rgba(255, 89, 0, 1)' : (isDiscord ? '#5865f2' : (isRoll ? '#8b5cf6' : '#3b82f6'));
+      const bgColor = isPops ? '#1c1917' : (isDiscord ? '#171a2b' : (isRoll ? '#1a1826' : '#18181b'));
 
       return `
         <div style="background: ${bgColor}; padding: 10px 12px; border-radius: 8px; border-left: 3px solid ${borderColor};">
           <div style="font-size: 11px; margin-bottom: 4px;">${senderDisplay}</div>
-          <div style="white-space: pre-wrap; line-height: 1.5; color: #e4e4e7;">${item.text}</div>
+          <div style="white-space: pre-wrap; line-height: 1.5; color: #e4e4e7;">${escapeHtml(item.text)}</div>
         </div>
       `;
     }).join("");

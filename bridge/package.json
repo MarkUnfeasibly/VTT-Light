@@ -1,0 +1,19 @@
+{
+  "name": "vtt-light-discord-bridge",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Relays Discord chat into the VTT-Light POPS panel and answers AI mentions via the existing POPS backend.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "channels": "node list-channels.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5"
+  }
+}
