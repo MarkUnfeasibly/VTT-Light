@@ -145,6 +145,25 @@ export const playerDB = {
     async savePlayer(player) {
         player.updatedAt = Date.now();
         if (!player.createdAt) player.createdAt = player.updatedAt;
+
+        // Single game master rule: at most ONE crew record may carry isAdmin.
+        // Granting admin anywhere demotes whoever currently holds it.
+        if (player.isAdmin === true) {
+            try {
+                const snap = await get(dbRef(db, CREW_PATH));
+                const rows = (snap && snap.val()) || {};
+                for (const [id, other] of Object.entries(rows)) {
+                    if (id === player.id || !other || other.isAdmin !== true) continue;
+                    other.isAdmin = false;
+                    other.updatedAt = player.updatedAt;
+                    await set(dbRef(db, `${CREW_PATH}/${id}`), other);
+                    await localPut(other);
+                }
+            } catch (e) {
+                console.warn('single-admin demotion skipped (DB unreachable):', e && e.message);
+            }
+        }
+
         try {
             await set(dbRef(db, `${CREW_PATH}/${player.id}`), player);
         } catch (e) {

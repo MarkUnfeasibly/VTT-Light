@@ -25,22 +25,42 @@ import { app } from "./firebase.js";
 export const auth = getAuth(app);
 
 let currentUser = null;
-let onUserReady;
+let initialStateFired = false;
+const readyListeners = [];
+const changeListeners = [];
 
-/** Resolves once with the first signed-in user (or null if signed out). */
-export function onAuthReady(cb) {
-    if (onUserReady) {
-        onUserReady(cb);
-        return;
+// Fires on *every* auth change (signed out -> signed in -> signed out).
+// This is what actually drives the login gate: the first callback is usually
+// "not signed in yet" (Firebase is still restoring the session), and signing
+// up or signing in arrives on a LATER callback.
+onAuthStateChanged(auth, (user) => {
+    currentUser = user;
+    // Lightweight diagnostics for the login gate (safe in production builds).
+    try {
+        window.__VTT_AUTH__ = { uid: user ? user.uid : null, at: Date.now() };
+        console.log("[auth] state →", user ? "user:" + String(user.uid).slice(0, 8) : "signed out");
+    } catch (e) { /* diagnostics only */ }
+    if (!initialStateFired) {
+        initialStateFired = true;
+        readyListeners.splice(0).forEach((cb) => {
+            try { cb(user); } catch (e) { console.error(e); }
+        });
     }
-    let fired = false;
-    const off = onAuthStateChanged(auth, (user) => {
-        if (fired) return;
-        fired = true;
-        off();
-        onUserReady = (next) => next(user);
-        cb(user);
+    changeListeners.forEach((cb) => {
+        try { cb(user); } catch (e) { console.error(e); }
     });
+});
+
+/** Fires once when Firebase has settled its first answer (user or null). */
+export function onAuthReady(cb) {
+    if (initialStateFired) cb(currentUser);
+    else readyListeners.push(cb);
+}
+
+/** Fires on every sign-in / sign-out, and once immediately if settled. */
+export function onAuthChange(cb) {
+    changeListeners.push(cb);
+    if (initialStateFired) cb(currentUser);
 }
 
 export function getUser() {
@@ -81,6 +101,11 @@ export async function signUpEmail(email, password) {
 }
 
 export async function signOutUser() {
+    // Clear the seat — the next account must not inherit it.
+    try {
+        localStorage.removeItem('vtt_player_id');
+        localStorage.removeItem('vtt_player_name');
+    } catch (e) { /* storage unavailable */ }
     await signOut(auth);
     location.reload();
 }
@@ -113,6 +138,21 @@ function friendlyError(err) {
     return map[code] || (err && err.message) || "Sign-in failed.";
 }
 
+/** The Discord button is optional until the provider is configured in the
+ *  Firebase console — say so plainly instead of showing a raw error. */
+function discordFriendlyError(err) {
+    const code = (err && err.code) || "";
+    if (
+        code === "auth/operation-not-allowed" ||
+        code === "auth/configuration-not-found" ||
+        code === "auth/invalid-oidc-provider" ||
+        code === "auth/missing-or-invalid-credentials"
+    ) {
+        return "Discord sign-in isn't switched on in Firebase yet — use the form below for now (see FIREBASE_SETUP.md, step 4).";
+    }
+    return friendlyError(err);
+}
+
 export function showAuthScreen(show) {
     const el = document.getElementById("auth-screen");
     if (el) el.style.display = show ? "flex" : "none";
@@ -137,44 +177,68 @@ export function setupAuthUI() {
     const emailEl = document.getElementById("auth-email");
     const passEl = document.getElementById("auth-password");
     const submitBtn = document.getElementById("auth-submit");
-    const toggleBtn = document.getElementById("auth-toggle");
+    const tabSignin = document.getElementById("auth-tab-signin");
+    const tabSignup = document.getElementById("auth-tab-signup");
+    const subtitleEl = document.getElementById("auth-subtitle");
+    const hintEl = document.getElementById("auth-hint");
     const errEl = document.getElementById("auth-error");
     const setErr = (msg) => { if (errEl) errEl.textContent = msg || ""; };
 
     let mode = "signin";
 
+    /** Switch between sign-in and create-account, and make it obvious. */
+    const setMode = (next) => {
+        mode = next;
+        const signup = mode === "signup";
+        if (tabSignin) tabSignin.classList.toggle("auth-tab-active", !signup);
+        if (tabSignup) tabSignup.classList.toggle("auth-tab-active", signup);
+        document.documentElement.classList.toggle("auth-signup", signup);
+        if (submitBtn) submitBtn.textContent = signup ? "Create account" : "Sign in";
+        if (subtitleEl) {
+            subtitleEl.textContent = signup
+                ? "New here? Create an account — you'll drop straight into the VTT"
+                : "Sign in to open the control interface";
+        }
+        if (hintEl) {
+            hintEl.textContent = signup
+                ? "Pick a password of 6+ characters. Already have an account? Switch back to SIGN IN above."
+                : "";
+        }
+        if (passEl) passEl.autocomplete = signup ? "new-password" : "current-password";
+        setErr("");
+    };
+
+    if (tabSignin) tabSignin.onclick = () => setMode("signin");
+    if (tabSignup) tabSignup.onclick = () => setMode("signup");
+
     if (discordBtn) {
         discordBtn.onclick = () => {
             setErr("");
-            signInWithDiscord().catch((e) => setErr(friendlyError(e)));
+            signInWithDiscord().catch((e) => setErr(discordFriendlyError(e)));
         };
     }
 
     const submit = async () => {
         setErr("");
         if (!emailEl.value.trim() || !passEl.value) { setErr("Email and password are required."); return; }
+        if (mode === "signup" && passEl.value.length < 6) { setErr("Password must be at least 6 characters."); return; }
         submitBtn.disabled = true;
+        submitBtn.textContent = mode === "signup" ? "Creating account…" : "Signing in…";
         try {
             if (mode === "signin") await signInEmail(emailEl.value, passEl.value);
             else await signUpEmail(emailEl.value, passEl.value);
+            // onAuthChange in main.js takes over from here.
         } catch (e) {
             setErr(friendlyError(e));
         } finally {
             submitBtn.disabled = false;
+            submitBtn.textContent = mode === "signup" ? "Create account" : "Sign in";
         }
     };
 
     if (submitBtn) submitBtn.onclick = submit;
-    if (passEl) {
-        passEl.onkeydown = (e) => { if (e.key === "Enter") submit(); };
-        emailEl.onkeydown = (e) => { if (e.key === "Enter") submit(); };
-    }
-    if (toggleBtn) {
-        toggleBtn.onclick = () => {
-            mode = mode === "signin" ? "signup" : "signin";
-            submitBtn.textContent = mode === "signin" ? "Sign in" : "Create account";
-            toggleBtn.textContent =
-                mode === "signin" ? "Need an account? Create one" : "Have an account? Sign in";
-        };
-    }
+    if (passEl) passEl.onkeydown = (e) => { if (e.key === "Enter") submit(); };
+    if (emailEl) emailEl.onkeydown = (e) => { if (e.key === "Enter") submit(); };
+
+    setMode("signin");
 }

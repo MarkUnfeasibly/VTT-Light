@@ -11,7 +11,7 @@
 //   - Prep mode additionally requires the SEATED player to carry isAdmin=true.
 
 import { playerDB, newId } from './playerdb.js';
-import { discordIdentity, displayName } from './auth.js';
+import { discordIdentity, displayName, getUser } from './auth.js';
 import { startDiscordLink, handleDiscordRedirect, getDiscordClientId, setDiscordClientId, avatarUrl } from './discord.js';
 
 const SEAT_KEY = 'vtt_player_name';       // legacy key used by pops.js
@@ -41,6 +41,17 @@ export function isAdminSeated() {
 export function getCurrentPlayerName() {
     const p = seatedPlayer();
     return p ? p.name : (localStorage.getItem(SEAT_KEY) || 'Crew');
+}
+
+/** True when a crew record belongs to the signed-in user (by Firebase UID,
+ *  or by a linked Discord ID for records created before accounts existed).
+ *  Seats are personal: you can only take your own. */
+function isOwnRecord(p) {
+    const u = getUser();
+    if (u && p.id === u.uid) return true;
+    const dp = discordIdentity();
+    if (dp && p.discord && String(p.discord.id) === dp.id) return true;
+    return false;
 }
 
 async function seat(p) {
@@ -82,7 +93,7 @@ async function renderCrew() {
     const seated = seatedPlayer();
 
     if (seatBtn) {
-        seatBtn.textContent = seated ? `⏏ Leave seat (${seated.name})` : '🛅 Take a seat';
+        seatBtn.textContent = seated ? `⏏ Leave seat (${seated.name})` : '🛅 Take my seat';
     }
 
     if (players.length === 0) {
@@ -106,7 +117,7 @@ async function renderCrew() {
 
         const adminRow = isAdminSession() ? `
             <button class="crew-mini-btn" data-action="toggle-admin" data-id="${p.id}"
-                title="${p.isAdmin ? 'Remove admin' : 'Grant admin (prep mode)'}"
+                title="${p.isAdmin ? 'Remove game master' : 'Make game master (only one at a time — replaces the current 👑)'}"
                 style="font-size:10px; background:${p.isAdmin ? '#4a148c' : '#27272a'}; border:1px solid ${p.isAdmin ? '#6a1b9a' : '#3f3f46'}; color:#e4e4e7; padding:1px 6px; border-radius:4px; width:auto; cursor:pointer;">${p.isAdmin ? '👑' : '🗡️'}</button>
             <button class="crew-mini-btn" data-action="edit" data-id="${p.id}"
                 style="font-size:10px; background:#27272a; border:1px solid #3f3f46; color:#a1a1aa; padding:1px 6px; border-radius:4px; width:auto; cursor:pointer;">✎</button>
@@ -115,13 +126,13 @@ async function renderCrew() {
         ` : '';
 
         return `
-        <div class="crew-row" data-id="${p.id}" style="
-            display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; cursor:pointer;
-            background:${isSeated ? '#04302c' : 'transparent'}; border:1px solid ${isSeated ? '#00ffcc55' : 'transparent'};">
+        <div class="crew-row" data-id="${p.id}" title="${isOwnRecord(p) ? 'Click to take or leave your own seat' : 'Seats are personal — this crew member must sign in themselves'}" style="
+            display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; cursor:${isOwnRecord(p) ? 'pointer' : 'default'};
+            background:${isSeated ? '#04302c' : 'transparent'}; border:1px solid ${isSeated ? '#00ffcc55' : (isOwnRecord(p) ? '#27272a' : 'transparent')};">
             ${playerAvatarHtml(p)}
             <div style="flex:1; min-width:0;">
-                <div style="font-size:12px; font-weight:600; color:${isSeated ? '#00ffcc' : '#e4e4e7'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                    ${esc(p.name)} ${adminBadge}
+                <div style="font-size:12px; font-weight:600; color:${isSeated ? '#00ffcc' : (isOwnRecord(p) ? '#d4d4d8' : '#a1a1aa')}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                    ${esc(p.name)} ${adminBadge} ${isOwnRecord(p) && !isSeated ? '<span title="Your seat" style="font-size:10px;">🛅</span>' : ''}
                 </div>
                 ${p.character ? `<div style="font-size:10px; color:#71717a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(p.character)}</div>` : ''}
             </div>
@@ -136,6 +147,8 @@ async function renderCrew() {
             if (e.target.closest('.crew-mini-btn')) return;
             const p = players.find((x) => x.id === row.dataset.id);
             if (!p) return;
+            // Seats are personal: only the signed-in user's own record can be taken.
+            if (!isOwnRecord(p)) return;
             if (seated && seated.id === p.id) uns_seat(); else seat(p);
         });
     });
@@ -149,6 +162,11 @@ async function renderCrew() {
                     // Bootstrap rule: if no admin exists yet, allow the first grant
                     // from an admin session; afterwards, only an admin can re-grant.
                     if (p.isAdmin || isAdminSeated() || !(await playerDB.anyAdminExists())) {
+                        // Single game master: granting admin demotes the current 👑.
+                        if (!p.isAdmin && (await playerDB.anyAdminExists())) {
+                            const current = players.find((x) => x.isAdmin && x.id !== p.id);
+                            if (current && !confirm(`${current.name} is currently the game master. Make ${p.name} the game master instead?`)) return;
+                        }
                         p.isAdmin = !p.isAdmin;
                         await playerDB.savePlayer(p);
                         await loadPlayers();
@@ -209,6 +227,15 @@ export async function ensureCrewForUser(user) {
     p.email = user.email || p.email || null;
 
     await playerDB.savePlayer(p);
+
+    // Logging in seats you: the session always sits in YOUR own crew record
+    // (never someone else's — see isOwnRecord).
+    if (localStorage.getItem(SEAT_ID_KEY) !== p.id) seat(p);
+    else {
+        localStorage.setItem(SEAT_KEY, p.name);
+        renderCrew();
+        emit();
+    }
     await loadPlayers();
     return p;
 }
@@ -356,12 +383,10 @@ export async function setupPlayers() {
         seatBtn.addEventListener('click', () => {
             const seated = seatedPlayer();
             if (seated) { uns_seat(); return; }
-            if (players.length === 0) { alert('No crew registered yet.'); return; }
-            // Quick seat picker
-            const names = players.map((p, i) => `${i + 1}. ${p.name}${p.isAdmin ? ' 👑' : ''}`).join('\n');
-            const pick = prompt(`Who is taking the seat?\n\n${names}\n\nEnter number:`);
-            const idx = parseInt(pick, 10) - 1;
-            if (!isNaN(idx) && players[idx]) seat(players[idx]);
+            // Seats are personal — take your own, never someone else's.
+            const mine = players.find(isOwnRecord);
+            if (!mine) { alert('Your crew record is created when you sign in.'); return; }
+            seat(mine);
         });
     }
 

@@ -1,7 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { state } from './state.js';
 import { onValue, set, dbRefs } from './firebase.js';
-import { onAuthReady, setupAuthUI, showAuthScreen, setupAuthChip } from './auth.js';
+import { onAuthChange, setupAuthUI, showAuthScreen, setupAuthChip } from './auth.js';
 import { setupInputs } from './input.js';
 import { setupUI } from './ui.js';
 import { initPopsListener } from "./pops.js";
@@ -200,16 +200,24 @@ function startApp() {
 }
 
 // 0. AUTH GATE — the VTT does not boot until someone is signed in.
+// onAuthChange fires on every state change: the first callback is usually
+// "no session yet" (login screen), and the sign-in/sign-up that follows
+// arrives on a later callback — which is what starts the app.
 setupAuthUI();
-onAuthReady(async (user) => {
+let booted = false;
+onAuthChange(async (user) => {
+    console.log("[gate] auth callback →", user ? "user:" + String(user.uid).slice(0, 8) : "signed out", "booted=", booted);
     showAuthScreen(!user);
-    if (!user) return;
+    if (!user || booted) return;
+    booted = true;
+
+    // Show the sign-out chip the moment there is a session.
+    setupAuthChip();
 
     try {
         await ensureCrewForUser(user);
     } catch (e) {
         console.error('Crew record setup failed:', e);
     }
-    setupAuthChip();
     startApp();
 });

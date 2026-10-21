@@ -152,9 +152,22 @@
         }
         .panel-resize-handle:hover::after { background: #00ffcc; opacity: 1; }
 
-        /* Access gate: players never see the mode selector (set by inline script below) */
-        #modeSelect { display: none; }
-        html.admin #modeSelect { display: block; }
+        /* Access gate: the <select> stays in the DOM (input.js/renderer.js read
+           its value) but is driven by the two-position mode toggle below. */
+        #modeSelect { display: none !important; }
+
+        /* PREP / PLAY mode toggle */
+        #mode-toggle { display: flex; gap: 4px; background: #09090b; border: 1px solid #3f3f46;
+            border-radius: 999px; padding: 4px; }
+        .mode-seg { flex: 1; font-family: 'Audiowide', Arial, sans-serif; font-size: 11px;
+            letter-spacing: .06em; padding: 8px 4px; border-radius: 999px;
+            border: 1px solid transparent; background: transparent; color: #71717a;
+            cursor: pointer; transition: all .15s ease; }
+        .mode-seg:hover:not(:disabled) { color: #e4e4e7; }
+        .mode-seg:disabled { opacity: .35; cursor: not-allowed; }
+        .mode-seg-active { font-weight: bold; }
+        .mode-seg-active[data-mode="play"] { background: #0d3b2e; border-color: #00ffcc66; color: #00ffcc; }
+        .mode-seg-active[data-mode="prep"] { background: #4a148c; border-color: #7c4dff88; color: #e4e4e7; }
 
         /* Crew Manifest is admin-only (admin URL session — see access gate) */
         html.player #crew-widget { display: none !important; }
@@ -214,10 +227,15 @@
         </div>
 
         <div class="gm-section" style="background: #18181b;" id="modeSection">
-            <select id="modeSelect" style="background: #00509e; color: white; font-weight: bold; border: none; font-size: 14px; padding: 8px;">
+            <select id="modeSelect">
                 <option value="play" selected>🎲 PLAY MODE</option>
                 <option value="prep">🛠️ PREP MODE</option>
             </select>
+            <!-- Two-position mode toggle — mirrors #modeSelect (see ui.js) -->
+            <div id="mode-toggle">
+                <button class="mode-seg" data-mode="play" type="button">🎲 PLAY</button>
+                <button class="mode-seg" data-mode="prep" type="button">🛠️ PREP</button>
+            </div>
         </div>
 
         <div id="gmTools" style="display: none; flex-direction: column;">
@@ -395,7 +413,7 @@
                 <input type="color" id="pe-color" value="#3f3f46" style="width:48px; height:30px; padding:2px; background:#09090b; border:1px solid #3f3f46; border-radius:6px;">
             </label>
             <label style="font-size:12px; color:#e4e4e7; display:flex; align-items:center; gap:8px; cursor:pointer;">
-                <input type="checkbox" id="pe-admin" style="width:auto;"> 👑 Admin — unlocks prep mode
+                <input type="checkbox" id="pe-admin" style="width:auto;"> 👑 Game master (one at a time) — unlocks prep mode
             </label>
             <div style="border-top:1px solid #27272a; padding-top:8px; display:flex; flex-direction:column; gap:6px;">
                 <div style="font-size:11px; color:#71717a;">Discord account: <span id="pe-discord-status" style="color:#a1a1aa;">not linked</span></div>
@@ -412,34 +430,60 @@
     </div>
 
     <!-- AUTH: login overlay — the VTT does not boot until a user signs in -->
+    <style>
+        .auth-card { width: 366px; max-width: 92vw; background: #0f0f12; border: 1px solid #27272a;
+            border-radius: 14px; padding: 24px; box-shadow: 0 24px 70px rgba(0,0,0,.7); }
+        .auth-tabs { display: flex; gap: 6px; margin: 0 0 14px; background: #09090b;
+            border: 1px solid #27272a; border-radius: 9px; padding: 4px; }
+        .auth-tab { flex: 1; font-family: 'Audiowide', Arial, sans-serif; font-size: 11px;
+            letter-spacing: .06em; padding: 9px 6px; border-radius: 6px; border: 1px solid transparent;
+            background: transparent; color: #71717a; cursor: pointer; transition: all .15s ease; }
+        .auth-tab:hover { color: #a1a1aa; }
+        .auth-tab-active { background: #14532d; border-color: #166534; color: #dcfce7; }
+        html.auth-signup .auth-tab-active { background: #38bdf8; border-color: #0ea5e9; color: #06263a; }
+        .auth-submit { width: 100%; font-family: 'Audiowide', Arial, sans-serif; font-size: 12px;
+            padding: 10px; border-radius: 8px; cursor: pointer;
+            background: #14532d; border: 1px solid #166534; color: #dcfce7; }
+        html.auth-signup .auth-submit { background: #38bdf8; border-color: #0ea5e9; color: #06263a; }
+        .auth-field { background: #09090b; color: #f4f4f5; border: 1px solid #3f3f46;
+            padding: 9px 10px; border-radius: 8px; font-size: 12px; width: 100%; box-sizing: border-box; }
+        #auth-hint { min-height: 14px; margin-top: 8px; font-size: 10.5px; color: #71717a; }
+        #auth-error { min-height: 16px; margin-top: 6px; font-size: 11px; color: #f87171; }
+    </style>
     <div id="auth-screen" style="display:flex; position:fixed; inset:0; z-index:40000; align-items:center; justify-content:center; background:radial-gradient(1200px 700px at 50% 15%, #0b1220 0%, #060608 70%); font-family:'Audiowide',Arial,sans-serif;">
-        <div style="width:360px; max-width:92vw; background:#0f0f12; border:1px solid #27272a; border-radius:14px; padding:26px; box-shadow:0 24px 70px rgba(0,0,0,.7);">
+        <div class="auth-card">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
                 <span style="font-size:20px;">🗺️</span>
                 <span style="font-size:18px; letter-spacing:.08em; color:#38bdf8;">VTT-LIGHT</span>
             </div>
-            <div style="font-size:11px; color:#71717a; margin-bottom:18px;">Sign in to open the control interface</div>
+            <div id="auth-subtitle" style="font-size:11px; color:#71717a; margin-bottom:16px;">Sign in to open the control interface</div>
 
-            <button id="auth-discord" style="width:100%; background:#5865F2; border:1px solid #4752c4; color:#fff; font-size:12px; padding:10px; border-radius:8px; cursor:pointer;">🎮 Continue with Discord</button>
+            <!-- Mode switch: the highlighted tab is the mode you are in -->
+            <div class="auth-tabs" role="tablist">
+                <button id="auth-tab-signin" class="auth-tab auth-tab-active" type="button">🔑 SIGN IN</button>
+                <button id="auth-tab-signup" class="auth-tab" type="button">✦ CREATE ACCOUNT</button>
+            </div>
+
+            <button id="auth-discord" style="width:100%; background:#5865F2; border:1px solid #4752c4; color:#fff; font-family:'Audiowide',Arial,sans-serif; font-size:12px; padding:10px; border-radius:8px; cursor:pointer;">🎮 Continue with Discord</button>
 
             <div style="display:flex; align-items:center; gap:10px; margin:14px 0; color:#52525b; font-size:10px; letter-spacing:.1em;">
                 <div style="flex:1; border-top:1px solid #27272a;"></div>OR<div style="flex:1; border-top:1px solid #27272a;"></div>
             </div>
 
             <div style="display:flex; flex-direction:column; gap:8px;">
-                <input id="auth-email" type="email" placeholder="Email" autocomplete="username" style="background:#09090b; color:#f4f4f5; border:1px solid #3f3f46; padding:9px 10px; border-radius:8px; font-size:12px;">
-                <input id="auth-password" type="password" placeholder="Password" autocomplete="current-password" style="background:#09090b; color:#f4f4f5; border:1px solid #3f3f46; padding:9px 10px; border-radius:8px; font-size:12px;">
-                <button id="auth-submit" style="background:#14532d; border:1px solid #166534; color:#dcfce7; font-size:12px; padding:9px; border-radius:8px; cursor:pointer;">Sign in</button>
-                <button id="auth-toggle" style="background:transparent; border:none; color:#71717a; font-size:11px; cursor:pointer; text-decoration:underline;">Need an account? Create one</button>
+                <input id="auth-email" class="auth-field" type="email" placeholder="Email" autocomplete="username">
+                <input id="auth-password" class="auth-field" type="password" placeholder="Password" autocomplete="current-password">
+                <button id="auth-submit" class="auth-submit" type="button">Sign in</button>
             </div>
-            <div id="auth-error" style="min-height:16px; margin-top:10px; font-size:11px; color:#f87171;"></div>
+            <div id="auth-hint"></div>
+            <div id="auth-error"></div>
         </div>
     </div>
 
     <!-- AUTH chip: signed-in identity + sign out -->
-    <div id="auth-chip" style="position:fixed; top:8px; right:12px; z-index:20000; display:none; align-items:center; gap:8px; background:rgba(18,18,18,.9); border:1px solid #27272a; border-radius:999px; padding:4px 6px 4px 12px; font-size:11px; color:#a1a1aa; font-family:'Audiowide',Arial,sans-serif; box-shadow:0 2px 8px rgba(0,0,0,.5);">
+    <div id="auth-chip" style="position:fixed; top:8px; right:12px; z-index:20000; display:none; align-items:center; gap:10px; background:rgba(18,18,18,.92); border:1px solid #3f3f46; border-radius:999px; padding:5px 6px 5px 14px; font-size:11px; color:#a1a1aa; font-family:'Audiowide',Arial,sans-serif; box-shadow:0 2px 8px rgba(0,0,0,.5);">
         <span class="auth-chip-name"></span>
-        <button class="auth-chip-out" title="Sign out" style="background:#27272a; border:1px solid #3f3f46; color:#a1a1aa; border-radius:50%; width:20px; height:20px; font-size:11px; cursor:pointer; padding:0;">⏻</button>
+        <button class="auth-chip-out" title="Sign out of VTT-Light" style="background:#27272a; border:1px solid #52525b; color:#fca5a5; border-radius:999px; padding:3px 10px; font-family:inherit; font-size:11px; cursor:pointer;">⏻ Sign out</button>
     </div>
 
     <script type="module" src="/src/main.js"></script>

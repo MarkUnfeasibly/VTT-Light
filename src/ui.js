@@ -270,6 +270,30 @@ export function setupUI() {
     });
     const modeSelect = document.getElementById('modeSelect');
     const gmTools = document.getElementById('gmTools');
+    const modeToggle = document.getElementById('mode-toggle');
+    const prepSeg = modeToggle ? modeToggle.querySelector('[data-mode="prep"]') : null;
+
+    // The toggle's visuals mirror the hidden <select> (input.js/renderer.js
+    // keep reading its value — nothing else changes for them).
+    const syncModeToggle = () => {
+        if (!modeToggle) return;
+        modeToggle.querySelectorAll('.mode-seg').forEach((b) => {
+            const active = b.dataset.mode === modeSelect.value;
+            b.classList.toggle('mode-seg-active', active);
+            b.setAttribute('aria-pressed', String(active));
+        });
+    };
+
+    if (modeToggle) {
+        modeToggle.querySelectorAll('.mode-seg').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                if (btn.disabled || modeSelect.value === btn.dataset.mode) return;
+                modeSelect.value = btn.dataset.mode;
+                modeSelect.dispatchEvent(new Event('change'));
+            });
+        });
+        syncModeToggle();
+    }
 
     // --- ACCESS GATE -------------------------------------------------------
     // A plain URL (/) is always play-mode only.
@@ -286,38 +310,31 @@ export function setupUI() {
         if (modeSection) modeSection.appendChild(hint);
 
         const applyAdminGate = () => {
-            let prepOption = modeSelect.querySelector('option[value="prep"]');
-
             if (isAdminSeated()) {
-                if (!prepOption) {
-                    prepOption = document.createElement('option');
-                    prepOption.value = 'prep';
-                    prepOption.textContent = '🛠️ PREP MODE';
-                    modeSelect.appendChild(prepOption);
-                }
-                modeSelect.disabled = false;
+                if (prepSeg) prepSeg.disabled = false;
                 hint.style.display = 'none';
                 if (modeSelect.value !== 'prep') {
                     modeSelect.value = 'prep'; // admins land in prep mode
                     modeSelect.dispatchEvent(new Event('change'));
+                } else {
+                    syncModeToggle();
                 }
             } else {
-                if (prepOption) prepOption.remove();
-                modeSelect.disabled = true;
+                if (prepSeg) prepSeg.disabled = true;
                 hint.style.display = 'block';
                 if (modeSelect.value !== 'play') {
                     modeSelect.value = 'play';
                     modeSelect.dispatchEvent(new Event('change'));
+                } else {
+                    syncModeToggle();
                 }
             }
         };
         onPlayerChange(applyAdminGate); // fires once players.js finishes loading
         applyAdminGate();
     } else {
-        // Players: remove the prep option entirely so it can never be selected.
-        // (The select element itself must stay in the DOM — input.js and renderer.js read its value.)
-        const prepOption = modeSelect.querySelector('option[value="prep"]');
-        if (prepOption) prepOption.remove();
+        // Players: hide the toggle entirely so prep can never be selected.
+        if (modeToggle) modeToggle.style.display = 'none';
 
         const modeSection = document.getElementById('modeSection');
         if (modeSection) {
@@ -329,6 +346,7 @@ export function setupUI() {
     }
 
     modeSelect.addEventListener('change', (e) => {
+        syncModeToggle();
         const isPrepMode = e.target.value === 'prep';
         
         wallLayer.visible = isPrepMode;
