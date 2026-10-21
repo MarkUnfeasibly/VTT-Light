@@ -13,43 +13,78 @@ import './poly-die.js';
 const SESSION_ID = Math.random().toString(36).slice(2, 10);
 
 export function setupDice() {
-    const die1 = document.getElementById('die1');
-    const die2 = document.getElementById('die2');
-    if (!die1 || !die2) return;
+    const container = document.getElementById('dice-container');
+    const btnRoll = document.getElementById('btnRollDice');
+    const inputCount = document.getElementById('diceCount');
+    const selectSides = document.getElementById('diceSides');
+    
+    if (!container || !btnRoll || !inputCount || !selectSides) return;
 
     let rolling = false;
+    let currentDice = [];
 
-    async function rollBoth() {
-        if (rolling || die1.rolling || die2.rolling) return;
+    // Spawns the correct number and type of 3D dice into the container
+    function renderDice() {
+        container.innerHTML = '';
+        currentDice = [];
+        
+        const count = Math.min(20, Math.max(1, parseInt(inputCount.value, 10) || 1));
+        const sides = selectSides.value;
+
+        for (let i = 0; i < count; i++) {
+            const die = document.createElement('poly-die');
+            die.setAttribute('sides', sides);
+            die.setAttribute('size', '80'); // Adjusted size so multiple fit easily
+            
+            // Clicking ANY die triggers a roll of ALL dice
+            die.addEventListener('click', rollAll);
+            die.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); rollAll(); }
+            });
+            
+            currentDice.push(die);
+            container.appendChild(die);
+        }
+    }
+
+    // Rolls all active dice and broadcasts the total
+    async function rollAll() {
+        if (rolling || currentDice.some(d => d.rolling)) return;
         rolling = true;
 
-        const [r1, r2] = await Promise.all([die1.roll(), die2.roll()]);
-        const total = r1.value + r2.value;
+        // Fire off all roll animations concurrently
+        const results = await Promise.all(currentDice.map(die => die.roll()));
+        
+        const values = results.map(r => r.value);
+        const total = values.reduce((sum, val) => sum + val, 0);
         const sender = getCurrentPlayerName();
+        const sides = selectSides.value;
+        const count = values.length;
 
         // Broadcast to other clients
-        set(dbRef(db, 'rolls'), null); // trim history — only latest roll matters
+        set(dbRef(db, 'rolls'), null); // trim history
         set(dbRef(db, 'rolls/last'), {
-            d1: r1.value, d2: r2.value, total,
+            values, total, sides, count,
             sender, session: SESSION_ID, ts: Date.now()
         }).catch((e) => console.error('Roll broadcast failed:', e));
 
-        // Post into the POPS panel for everyone
-        postRollToPops(sender, `🎲 ${r1.value} + ${r2.value} = ${total}`, {
-            d1: r1.value, d2: r2.value, total
+        // Post into the POPS panel (e.g. "🎲 3d6: 4 + 2 + 6 = 12")
+        const formula = `${count}d${sides}`;
+        const equation = values.join(' + ');
+        postRollToPops(sender, `🎲 ${formula}: ${equation} = ${total}`, {
+            values, total, formula
         }).catch((e) => console.error('POPS roll post failed:', e));
 
         rolling = false;
     }
 
-    // Take over from the die's own single-die click/keydown handlers:
-    // clicking either die rolls BOTH dice.
-    [die1, die2].forEach((d) => {
-        if (d._onClick) d.removeEventListener('click', d._onClick);
-        if (d._onKey) d.removeEventListener('keydown', d._onKey);
-        d.addEventListener('click', rollBoth);
-        d.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); rollBoth(); }
-        });
-    });
+    // Re-render the 3D objects instantly whenever the user changes the count or type
+    inputCount.addEventListener('input', renderDice);
+    selectSides.addEventListener('change', renderDice);
+    
+    // Wire up the Roll button
+    btnRoll.addEventListener('click', rollAll);
+
+    // Initial load
+    renderDice();
 }

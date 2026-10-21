@@ -343,7 +343,7 @@
     </div>
 
     <!-- DICE BAY (Bottom Right, next to the POPS panel) -->
-    <div id="dice-widget" class="pops-panel" style="right: 400px; top: calc(58vh + 36px); width: 236px;">
+    <div id="dice-widget" class="pops-panel" style="right: 400px; top: calc(58vh + 36px); width: 280px; max-height: calc(100vh - (58vh + 56px));">
         <div class="pops-header">
             <div>
                 <div style="font-size: 16px; display: flex; align-items: center; gap: 8px;">
@@ -352,9 +352,26 @@
                 </div>
             </div>
         </div>
-        <div style="display: flex; justify-content: center; gap: 4px; padding: 12px 8px;">
-            <poly-die id="die1" sides="6" size="92" color="#0e9f9f"></poly-die>
-            <poly-die id="die2" sides="6" size="92" color="#c2410c"></poly-die>
+        
+        <!-- NEW: Dynamic Dice Controls -->
+        <div style="padding: 12px; background: #18181b; border-bottom: 1px solid #27272a; display: flex; gap: 8px; align-items: center;">
+            <input type="number" id="diceCount" value="2" min="1" max="20" style="width: 48px; background: #09090b; color: #f4f4f5; border: 1px solid #3f3f46; padding: 6px; border-radius: 6px; text-align: center; font-size: 12px; outline: none; box-sizing: border-box;">
+            
+            <select id="diceSides" style="flex: 1; background: #09090b; color: #f4f4f5; border: 1px solid #3f3f46; padding: 6px; border-radius: 6px; font-size: 12px; outline: none; box-sizing: border-box;">
+                <option value="4">d4 (Tetrahedron)</option>
+                <option value="6" selected>d6 (Cube)</option>
+                <option value="8">d8 (Octahedron)</option>
+                <option value="10">d10 (Pentagonal)</option>
+                <option value="12">d12 (Dodecahedron)</option>
+                <option value="20">d20 (Icosahedron)</option>
+            </select>
+            
+            <button id="btnRollDice" style="background: #a78bfa; color: #121212; border: none; padding: 6px 14px; border-radius: 6px; font-weight: 600; font-size: 12px; cursor: pointer; width: auto; box-sizing: border-box;">Roll</button>
+        </div>
+
+        <!-- NEW: Dynamic Dice Container -->
+        <div id="dice-container" style="display: flex; flex-wrap: wrap; gap: 8px; padding: 16px 12px; justify-content: center; background: #121212; border-radius: 0 0 12px 12px; overflow-y: auto;">
+            <!-- 3D dice will be dynamically injected here by dice.js -->
         </div>
     </div>
 

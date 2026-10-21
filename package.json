@@ -15,5 +15,8 @@
     "firebase": "^12.18.0",
     "pixi.js": "^7.3.2",
     "three": "^0.186.1"
+  },
+  "allowScripts": {
+    "three@0.186.1": true
   }
 }
