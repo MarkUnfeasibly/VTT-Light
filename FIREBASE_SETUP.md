@@ -16,9 +16,9 @@ session, and unauthenticated reads/writes are rejected with `401`.
 | 3 | [Authorised domains](#3-authorised-domains) | ✅ done |
 | 4 | [Discord sign-in](#4-discord-sign-in-deliberately-skipped) | ⏭️ **skipped by decision** |
 | 5 | [Create the bridge service account](#5-create-the-bridge-service-account) | ✅ done |
-| 6 | [Publish the new rules](#6-publish-the-new-rules) | ⚠️ **re-publish needed** (new `config` path) |
+| 6 | [Publish the new rules](#6-publish-the-new-rules) | ✅ done (incl. `config`) |
 | 7 | [Verify](#7-verify) | ✅ done |
-| 8 | [Discord account linking](#8-discord-account-linking-crew-records) | ⚙️ **code ready — needs Client ID + rules** |
+| 8 | [Discord account linking](#8-discord-account-linking-crew-records) | ⚙️ **Client ID is set — test the button** |
 | — | [Troubleshooting](#troubleshooting) | reference |
 | — | [Rollback](#rollback) | reference |
 
@@ -150,12 +150,16 @@ token to every write and to the POPS stream (refreshing it hourly).
 
 ## 6. Publish the new rules
 
-**Status: ⚠️ needs re-publishing.** The original publish was verified live
-(unauthenticated `GET`/`POST` to `/`, `/crew` and `/pops_log` returned `401`),
-but a **`config` path has since been added** to `database.rules.json` for the
-shared Discord Client ID. Until the rules are re-published, `config` is not
-readable or writable, so the Discord App ID only saves in one browser (the
-panel shows an amber warning saying exactly this).
+**Status: ✅ done — including the `config` path.** Verified live:
+
+| Check | Result |
+| --- | --- |
+| Authenticated read of `/config`, `/crew`, `/pops_log` | `200` |
+| Authenticated **write** to `/config` | `200` |
+| Unauthenticated read of `/config`, `/crew`, `/pops_log` | `401` |
+
+So the shared Discord Client ID can be read and written by signed-in
+clients, and anonymous clients are refused everywhere.
 
 The rules live **in this repo** so they are version-controlled:
 
@@ -210,7 +214,11 @@ Still to confirm by hand (needs a live Discord message):
 
 ## 8. Discord account linking (crew records)
 
-**Status: ⚙️ code ready — needs the Client ID pasted in, and the rules re-published.**
+**Status: ⚙️ Client ID is already saved in the shared config — the button should work.**
+
+The shared config already holds a Client ID (`config/discord_client_id`), so the
+`No Discord Client ID configured` alert should no longer appear. What remains is
+to make sure the Discord app's **redirect URLs** match where you play.
 
 This is a **third, separate** Discord integration from the chat relay:
 
@@ -226,24 +234,25 @@ and roll cards show who is who. It does **not** drive the chat relay and does
 
 **Setup (once, by a seated admin):**
 
-1. Re-publish the rules (step 6) so the new `config` path goes live.
-2. Open the app at `/admin_mode` and **take your seat** — the field needs a
+1. Open the app at `/admin_mode` and **take your seat** — the field needs a
    seated admin, because it is a crew-wide setting.
-3. In the **CREW MANIFEST** panel, paste the **Application (Client) ID** into
-   the **Discord App ID** field and press Enter.
-   - The status line reads **✅ shared with all crew** when it worked.
-   - If it reads **⚠️ saved on this browser only**, step 1 has not been done.
-4. In the Discord Developer Portal → your app → **OAuth2** → **Redirects**, add
-   the exact URL you play on, e.g. `http://localhost:5173/` and your hosted
-   origin. It must match the page you click the button from.
-5. On a crew record, click **🔗 Link Discord** and authorise with `identify`.
+2. In the **CREW MANIFEST** panel, the **Discord App ID** field should already
+   contain the Client ID and read **✅ shared with all crew**. If you need to
+   change it, type the new value and press Enter.
+3. In the Discord Developer Portal → your app → **OAuth2** → **Redirects**, add
+   the exact URLs you play on:
+   - `https://vtt-light.web.app/`
+   - `https://vtt-light.firebaseapp.com/`
+   - `http://localhost:5173/`
+   The value must match the page you click the button from, including the slash.
+4. On a crew record, click **🔗 Link Discord** and authorise with `identify`.
 
 **No Client ID needed:** the editor also takes a Discord **username or numeric
 user ID** typed straight into the record. The relay already stamps every
 message with the author's Discord ID (`bridge/index.js`), so this is enough to
 match crew members to messages without any portal work.
 
-
+## Recovering the game master
 
 The crown is stored on the **crew record** (`crew/<id>/isAdmin`), which is separate
 from the **account** in Firebase Authentication. Normally only a *seated* admin
