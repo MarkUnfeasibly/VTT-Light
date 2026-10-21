@@ -159,11 +159,34 @@ async function renderCrew() {
             if (!p) return;
             switch (btn.dataset.action) {
                 case 'toggle-admin': {
+                    const otherAdmins = await playerDB.anyAdminExists();
+                    const isOnlyAdmin = p.isAdmin && !players.some((x) => x.isAdmin && x.id !== p.id);
+
+                    // RECOVERY RULE — prevents permanent lockout.
+                    // If the crown is stranded (the holder can't sign in, e.g. a
+                    // lost password), nobody can be promoted, because promoting
+                    // normally requires a SEATED admin. So: in an admin session a
+                    // stranded holder may always be stripped of the crown, which
+                    // clears the way for the bootstrap rule below to re-crown
+                    // whoever is actually present.
+                    if (isOnlyAdmin) {
+                        const ok = confirm(
+                            `${p.name} is the only game master.\n\n` +
+                            `Remove the crown from ${p.name}? Do this if they can no longer ` +
+                            `sign in — then anyone can be made game master again.`
+                        );
+                        if (!ok) return;
+                        p.isAdmin = false;
+                        await playerDB.savePlayer(p);
+                        await loadPlayers();
+                        return;
+                    }
+
                     // Bootstrap rule: if no admin exists yet, allow the first grant
                     // from an admin session; afterwards, only an admin can re-grant.
-                    if (p.isAdmin || isAdminSeated() || !(await playerDB.anyAdminExists())) {
+                    if (p.isAdmin || isAdminSeated() || !otherAdmins) {
                         // Single game master: granting admin demotes the current 👑.
-                        if (!p.isAdmin && (await playerDB.anyAdminExists())) {
+                        if (!p.isAdmin && otherAdmins) {
                             const current = players.find((x) => x.isAdmin && x.id !== p.id);
                             if (current && !confirm(`${current.name} is currently the game master. Make ${p.name} the game master instead?`)) return;
                         }

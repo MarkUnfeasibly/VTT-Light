@@ -203,6 +203,51 @@ Still to confirm by hand (needs a live Discord message):
 5. Send `hello` in `#general` → it appears in POPS (bridge authenticated).
 6. Ask `@POPS <question>` in Discord → AI answer lands back in Discord and POPS.
 
+## Recovering the game master
+
+The crown is stored on the **crew record** (`crew/<id>/isAdmin`), which is separate
+from the **account** in Firebase Authentication. Normally only a *seated* admin
+can hand the crown on — so if the holder loses their password, you can be locked
+out: nobody can be promoted, and the crown sits on someone who cannot sign in.
+
+There are two ways out. Both have been tested.
+
+### Option 1 — In the app (no console needed)
+
+1. Open `http://<app>/admin_mode` and **sign in as anyone** (your own account is fine).
+2. In **CREW MANIFEST**, find the stranded admin's row (the one with 👑).
+3. Click the **👑** button. It asks *"Remove the crown from X?"* — accept.
+   This works for the last remaining admin, which is what breaks the deadlock.
+4. Now no admin exists, so the **bootstrap rule** applies: click **🗡️** on the row
+   of whoever should be game master. They are crowned immediately.
+
+Equally valid: use the **✎** editor on the stranded row, untick
+*👑 Game master*, and save.
+
+Removing the crown **keeps the crew record** — seat, character and colour are all
+retained; only prep access is taken away.
+
+### Option 2 — In the Firebase console (when the app is the problem)
+
+> Realtime Database → Data → `crew` → expand the record → set
+> `isAdmin` to `false` → **Update**, then set `isAdmin` to `true` on the
+> replacement's record.
+
+The replacement then gets prep on their next sign-in (or immediately, live).
+No app restart or redeploy is needed — the app is subscribed to `crew`.
+
+If the admin's *account* is the problem rather than the crown:
+
+> Authentication → Users → find the account → **Delete account**. Deleting the
+> account does **not** remove their crew record or the crown — do Option 1 or 2
+> as well, or the crown stays stranded.
+
+### Preventing it
+
+Make sure at least **two** people can sign in and know how to reach
+`/admin_mode`. Only one can *hold* the crown at a time, but any signed-in person
+can perform the recovery above.
+
 ## Troubleshooting
 
 | Symptom | Cause / fix |
@@ -215,6 +260,7 @@ Still to confirm by hand (needs a live Discord message):
 | Discord chat no longer reaches POPS | Bridge account wrong/expired — check `FIREBASE_EMAIL`/`FIREBASE_PASSWORD` in `bridge/.env` and restart the bridge. |
 | Bridge says "invalid password" but the password is correct | Password contains `#` — quote it in `.env` (`FIREBASE_PASSWORD="p#ss"`), or dotenv treats the rest as a comment. |
 | Crew roster empty for a new player | Their first sign-in creates the record; if not, check `crew` in the database console. |
+| *"Only a seated admin can change admin flags"* and nobody can sign in as the admin | The crown is stranded — use [Recovering the game master](#recovering-the-game-master). |
 | Cannot deploy rules | `firebase login` with the *owner* of `vtt-light`, or ask Mark for Owner/Editor under **Users and permissions**. |
 
 ## Rollback
