@@ -271,29 +271,51 @@ export function setupUI() {
     const modeSelect = document.getElementById('modeSelect');
     const gmTools = document.getElementById('gmTools');
     const modeToggle = document.getElementById('mode-toggle');
-    const prepSeg = modeToggle ? modeToggle.querySelector('[data-mode="prep"]') : null;
+    const modeSwitch = modeToggle ? modeToggle.querySelector('.mode-switch') : null;
+    const prepSide = modeToggle ? modeToggle.querySelector('[data-side="prep"]') : null;
+    const playSide = modeToggle ? modeToggle.querySelector('[data-side="play"]') : null;
 
-    // The toggle's visuals mirror the hidden <select> (input.js/renderer.js
-    // keep reading its value — nothing else changes for them).
+    // The sliding switch mirrors the hidden <select> (input.js/renderer.js keep
+    // reading its value — nothing else changes for them). The knob is left for
+    // PLAY, right for PREP; the active label lights up.
     const syncModeToggle = () => {
-        if (!modeToggle) return;
-        modeToggle.querySelectorAll('.mode-seg').forEach((b) => {
-            const active = b.dataset.mode === modeSelect.value;
-            b.classList.toggle('mode-seg-active', active);
-            b.setAttribute('aria-pressed', String(active));
-        });
+        if (!modeSwitch) return;
+        const isPrep = modeSelect.value === 'prep';
+        modeSwitch.setAttribute('aria-checked', String(isPrep));
+        modeSwitch.dataset.mode = isPrep ? 'prep' : 'play';
+        const knob = modeSwitch.querySelector('.mode-knob');
+        if (knob) knob.classList.toggle('knob-right', isPrep);
+        if (prepSide) prepSide.classList.toggle('mode-side-active', isPrep);
+        if (playSide) playSide.classList.toggle('mode-side-active', !isPrep);
     };
 
-    if (modeToggle) {
-        modeToggle.querySelectorAll('.mode-seg').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                if (btn.disabled || modeSelect.value === btn.dataset.mode) return;
-                modeSelect.value = btn.dataset.mode;
-                modeSelect.dispatchEvent(new Event('change'));
-            });
-        });
+    // Flipping the switch (or clicking either label) sets the mode.
+    const setMode = (mode) => {
+        if (mode !== 'prep' && mode !== 'play') return;
+        if (modeSelect.value === mode) return;
+        modeSelect.value = mode;
+        modeSelect.dispatchEvent(new Event('change'));
         syncModeToggle();
+    };
+    if (modeSwitch) {
+        // Listen on the switch itself. Its child knob is inside it, so a click
+        // on the knob bubbles up here too.
+        modeSwitch.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            if (modeSwitch.disabled) return;
+            setMode(modeSelect.value === 'prep' ? 'play' : 'prep');
+        });
     }
+    [prepSide, playSide].forEach((side) => {
+        if (side) side.addEventListener('click', () => {
+            if (modeSwitch && modeSwitch.disabled) return;
+            setMode(side.dataset.side);
+        });
+    });
+    // The <select> is the single source of truth: whenever its value changes by
+    // any route (switch, label, gate, or code), re-sync the switch visuals.
+    modeSelect.addEventListener('change', syncModeToggle);
+    syncModeToggle();
 
     // --- ACCESS GATE -------------------------------------------------------
     // A plain URL (/) is always play-mode only.
@@ -311,24 +333,23 @@ export function setupUI() {
 
         const applyAdminGate = () => {
             if (isAdminSeated()) {
-                if (prepSeg) prepSeg.disabled = false;
+                if (modeSwitch) modeSwitch.disabled = false;
                 hint.style.display = 'none';
                 if (modeSelect.value !== 'prep') {
                     modeSelect.value = 'prep'; // admins land in prep mode
                     modeSelect.dispatchEvent(new Event('change'));
-                } else {
-                    syncModeToggle();
                 }
             } else {
-                if (prepSeg) prepSeg.disabled = true;
+                if (modeSwitch) modeSwitch.disabled = true;
                 hint.style.display = 'block';
                 if (modeSelect.value !== 'play') {
                     modeSelect.value = 'play';
                     modeSelect.dispatchEvent(new Event('change'));
-                } else {
-                    syncModeToggle();
                 }
             }
+            // Always re-sync, whether or not the value changed — the switch must
+            // never be out of step with the hidden <select>.
+            syncModeToggle();
         };
         onPlayerChange(applyAdminGate); // fires once players.js finishes loading
         applyAdminGate();

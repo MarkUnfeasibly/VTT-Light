@@ -156,18 +156,28 @@
            its value) but is driven by the two-position mode toggle below. */
         #modeSelect { display: none !important; }
 
-        /* PREP / PLAY mode toggle */
-        #mode-toggle { display: flex; gap: 4px; background: #09090b; border: 1px solid #3f3f46;
-            border-radius: 999px; padding: 4px; }
-        .mode-seg { flex: 1; font-family: 'Audiowide', Arial, sans-serif; font-size: 11px;
-            letter-spacing: .06em; padding: 8px 4px; border-radius: 999px;
-            border: 1px solid transparent; background: transparent; color: #71717a;
-            cursor: pointer; transition: all .15s ease; }
-        .mode-seg:hover:not(:disabled) { color: #e4e4e7; }
-        .mode-seg:disabled { opacity: .35; cursor: not-allowed; }
-        .mode-seg-active { font-weight: bold; }
-        .mode-seg-active[data-mode="play"] { background: #0d3b2e; border-color: #00ffcc66; color: #00ffcc; }
-        .mode-seg-active[data-mode="prep"] { background: #4a148c; border-color: #7c4dff88; color: #e4e4e7; }
+        /* PREP / PLAY sliding switch */
+        #mode-toggle { display: flex; align-items: center; justify-content: center;
+            gap: 10px; padding: 4px 0; }
+        .mode-side { font-family: 'Audiowide', Arial, sans-serif; font-size: 10px;
+            letter-spacing: .06em; color: #52525b; cursor: pointer;
+            transition: color .18s ease; white-space: nowrap; }
+        .mode-side:hover { color: #a1a1aa; }
+        .mode-side-active[data-side="play"] { color: #00ffcc; }
+        .mode-side-active[data-side="prep"] { color: #c084fc; }
+        .mode-switch { position: relative; width: 52px; height: 26px; flex: 0 0 auto;
+            border-radius: 999px; border: 1px solid #3f3f46; background: #0d3b2e;
+            cursor: pointer; padding: 0; transition: background .2s ease, border-color .2s ease; }
+        .mode-switch:focus-visible { outline: 2px solid #00ffcc; outline-offset: 2px; }
+        .mode-switch[aria-checked="true"] { background: #4a148c; border-color: #7c4dff88; }
+        .mode-switch:disabled { opacity: .35; cursor: not-allowed; }
+        .mode-knob { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px;
+            border-radius: 50%; background: #00ffcc; box-shadow: 0 1px 3px rgba(0,0,0,.6);
+            transition: left .2s ease, background .2s ease; }
+        /* Knob parked right (PREP). Driven by a class set in ui.js as well as by
+           aria-checked, so the position never depends on a descendant selector. */
+        .mode-switch[aria-checked="true"] .mode-knob,
+        .mode-knob.knob-right { left: 28px; background: #e9d5ff; }
 
         /* Crew Manifest is admin-only (admin URL session — see access gate) */
         html.player #crew-widget { display: none !important; }
@@ -231,10 +241,16 @@
                 <option value="play" selected>🎲 PLAY MODE</option>
                 <option value="prep">🛠️ PREP MODE</option>
             </select>
-            <!-- Two-position mode toggle — mirrors #modeSelect (see ui.js) -->
-            <div id="mode-toggle">
-                <button class="mode-seg" data-mode="play" type="button">🎲 PLAY</button>
-                <button class="mode-seg" data-mode="prep" type="button">🛠️ PREP</button>
+            <!-- Sliding mode switch — mirrors #modeSelect (see ui.js).
+                 Labels either side of a track with a sliding knob; the knob
+                 sits left for PLAY, right for PREP. -->
+            <div id="mode-toggle" role="group" aria-label="Game mode">
+                <span class="mode-side" data-side="play">🎲 PLAY</span>
+                <button class="mode-switch" type="button" role="switch" aria-checked="false"
+                        data-mode="play" title="Switch between prep and play mode">
+                    <span class="mode-knob"></span>
+                </button>
+                <span class="mode-side" data-side="prep">🛠️ PREP</span>
             </div>
         </div>
 
