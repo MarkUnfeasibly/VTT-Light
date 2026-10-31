@@ -17,8 +17,9 @@ export function setupDice() {
     const btnRoll = document.getElementById('btnRollDice');
     const inputCount = document.getElementById('diceCount');
     const selectSides = document.getElementById('diceSides');
+    const selectMod = document.getElementById('diceMod');
     
-    if (!container || !btnRoll || !inputCount || !selectSides) return;
+    if (!container || !btnRoll || !inputCount || !selectSides || !selectMod) return;
 
     let rolling = false;
     let currentDice = [];
@@ -56,21 +57,25 @@ export function setupDice() {
         const results = await Promise.all(currentDice.map(die => die.roll()));
         
         const values = results.map(r => r.value);
-        const total = values.reduce((sum, val) => sum + val, 0);
         const sender = getCurrentPlayerName();
         const sides = selectSides.value;
         const count = values.length;
+        const mod = parseInt(selectMod.value, 10) || 0;
+        
+        const total = values.reduce((sum, val) => sum + val, 0) + mod;
 
         // Broadcast to other clients
         set(dbRef(db, 'rolls'), null); // trim history
         set(dbRef(db, 'rolls/last'), {
-            values, total, sides, count,
+            values, total, sides, count, mod,
             sender, session: SESSION_ID, ts: Date.now()
         }).catch((e) => console.error('Roll broadcast failed:', e));
 
         // Post into the POPS panel (e.g. "🎲 3d6: 4 + 2 + 6 = 12")
-        const formula = `${count}d${sides}`;
-        const equation = values.join(' + ');
+        const modStr = mod === 0 ? '' : (mod > 0 ? `+${mod}` : `${mod}`);
+        const formula = `${count}d${sides}${modStr}`;
+        const baseEq = values.join(' + ');
+        const equation = mod === 0 ? baseEq : `(${baseEq}) ${mod > 0 ? '+' : '-'} ${Math.abs(mod)}`;
         postRollToPops(sender, `🎲 ${formula}: ${equation} = ${total}`, {
             values, total, formula
         }).catch((e) => console.error('POPS roll post failed:', e));

@@ -1,5 +1,5 @@
 // src/panels.js
-// Makes the MAP VIEWPORT, GM_SYS, CREW, POPS, DICE BAY and GM_SYS section
+// Makes the MAP VIEWPORT, GM_SYS, CREW, POPS, DICE BAY, CARGO BAY and GM_SYS section
 // panels draggable by their headers, and those panels minimisable
 // (collapse to header). POPS can also be resized vertically (never wider).
 // - Drag a header to float the panel anywhere on screen
@@ -12,8 +12,8 @@
 import { playerDB } from './playerdb.js';
 
 const SETTING_KEY = 'panel_positions';
-const DRAGGABLE = ['viewport-widget', 'gm-widget', 'pops-widget', 'dice-widget', 'crew-widget'];
-const MINIMIZABLE = ['gm-widget', 'pops-widget', 'dice-widget', 'crew-widget'];
+const DRAGGABLE = ['viewport-widget', 'gm-widget', 'pops-widget', 'dice-widget', 'crew-widget', 'panel-inventory'];
+const MINIMIZABLE = ['gm-widget', 'pops-widget', 'dice-widget', 'crew-widget', 'panel-inventory'];
 let positions = {};
 let zCounter = 10001;
 

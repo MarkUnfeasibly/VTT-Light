@@ -215,13 +215,21 @@ export function createTokenSprite(id) {
 }
 
 export function displayMap(texture) {
+    // 1. Remove and destroy the old map to prevent layer stacking
+    if (state.currentMapSprite) {
+        mapContainer.removeChild(state.currentMapSprite);
+        state.currentMapSprite.destroy();
+    }
+
     state.currentMapSprite = new PIXI.Sprite(texture);
     state.currentMapSprite.anchor.set(0.5); 
     
+    // 2. Add the new map at the very bottom (index 0)
     mapContainer.addChildAt(state.currentMapSprite, 0);
+    
+    // 3. Ensure all UI and lighting layers stay on top
     mapContainer.addChild(wallLayer);
     mapContainer.addChild(previewLayer);
-    
     mapContainer.addChild(lightingContainer);
     mapContainer.addChild(fowContainer); 
     mapContainer.addChild(lightMarkerLayer); 
@@ -231,7 +239,10 @@ export function displayMap(texture) {
     mapContainer.angle = 0; 
     fitMapToScreen();
     
-    const isPrepMode = document.getElementById('modeSelect').value === 'prep';
+    // Safely check modeSelect in case the DOM isn't fully loaded
+    const modeSelect = document.getElementById('modeSelect');
+    const isPrepMode = modeSelect ? modeSelect.value === 'prep' : false;
+    
     wallLayer.visible = isPrepMode;
     previewLayer.visible = isPrepMode;
     lightMarkerLayer.visible = isPrepMode;

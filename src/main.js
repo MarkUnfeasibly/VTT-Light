@@ -7,6 +7,7 @@ import { setupUI } from './ui.js';
 import { initPopsListener } from "./pops.js";
 import { setupPlayers, ensureCrewForUser } from "./players.js";
 import { setupDice } from "./dice.js";
+import { setupInventory } from './inventory.js';
 import { setupPanels } from "./panels.js";
 import { setupSections } from "./sections.js";
 import { 
@@ -39,9 +40,10 @@ function startApp() {
     const boot = () => {
         setupInputs();
         setupUI();
-        // Crew manifest (player database) + DICE BAY panel
+        // Crew manifest (player database) + DICE BAY panel + Inventory panel
         setupPlayers();
         setupDice();
+        setupInventory();
         // Draggable panels (positions remembered in the lite database);
         // section panels are built once panel positions have loaded
         setupPanels().then(setupSections).catch((e) => console.error('Panel setup failed:', e));
@@ -166,11 +168,12 @@ function startApp() {
         state.currentMapUrl = data.url;
 
         try {
-            const response = await fetch(data.url);
-            const blob = await response.blob();
-            const localUrl = URL.createObjectURL(blob);
-
             if (data.type === 'application/pdf') {
+                // PDFs require a secure fetch to generate the raw data blob
+                const response = await fetch(data.url);
+                const blob = await response.blob();
+                const localUrl = URL.createObjectURL(blob);
+
                 const loadingTask = window.pdfjsLib.getDocument(localUrl);
                 const pdf = await loadingTask.promise;
                 const page = await pdf.getPage(1);
@@ -185,7 +188,8 @@ function startApp() {
                 const texture = PIXI.Texture.from(offScreenCanvas);
                 displayMap(texture);
             } else {
-                const texture = await PIXI.Texture.fromURL(localUrl);
+                // Standard images load directly, bypassing CORS fetch issues
+                const texture = await PIXI.Texture.fromURL(data.url);
                 displayMap(texture);
             }
         } catch (error) {

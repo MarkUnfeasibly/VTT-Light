@@ -57,7 +57,6 @@ export function setupUI() {
     });
 
     // --- FEATURE: TOKEN LOCK & TURN RESET ---
-    // Replace your existing toggleLock listener with this one:
     document.getElementById('toggleLock').addEventListener('click', () => {
         const newLockState = !state.isMovementLocked;
         set(dbRefs.movementLock, newLockState);
@@ -123,6 +122,7 @@ export function setupUI() {
         };
         reader.readAsText(file);
     });
+
     document.getElementById('rotateCCW').addEventListener('click', () => {
         if (!state.currentMapSprite) return;
         mapContainer.angle = (mapContainer.angle - 90) % 360;
@@ -135,7 +135,7 @@ export function setupUI() {
         fitMapToScreen();
     });
 
-  document.getElementById('toggleDraw').addEventListener('click', (e) => {
+    document.getElementById('toggleDraw').addEventListener('click', (e) => {
         state.isDrawMode = !state.isDrawMode;
         
         const doorBtn = document.getElementById('toggleDoorDraw');
@@ -224,28 +224,6 @@ export function setupUI() {
         }
     });
 
-    document.getElementById('lightRadiusInput').addEventListener('input', (e) => {
-        const newRadius = parseInt(e.target.value, 10);
-        if (state.activeSelectLightId && state.lights[state.activeSelectLightId]) {
-            state.lights[state.activeSelectLightId].radius = newRadius; 
-            updateLighting(); 
-            set(dbRef(db, `lights/${state.activeSelectLightId}/radius`), newRadius); 
-        }
-    });
-
-    document.getElementById('lightTypeSelect').addEventListener('change', (e) => {
-        const type = e.target.value;
-        const radiusInput = document.getElementById('lightRadiusInput');
-        
-        if (type === 'ceiling') radiusInput.value = 400;
-        if (type === 'emergency') radiusInput.value = 120;
-        
-        if (state.activeSelectLightId && state.lights[state.activeSelectLightId]) {
-            set(dbRef(db, `lights/${state.activeSelectLightId}/type`), type);
-            set(dbRef(db, `lights/${state.activeSelectLightId}/radius`), parseInt(radiusInput.value, 10));
-        }
-    });
-
     const tokenCountSel = document.getElementById('tokenCountSelect'); // optional — removed from the Entities panel
     if (tokenCountSel) tokenCountSel.addEventListener('change', (e) => {
         const newCount = parseInt(e.target.value, 10);
@@ -258,16 +236,64 @@ export function setupUI() {
         updateLighting(); 
         set(dbRefs.tokenSettings, state.tokenSettings);
     });
+    
     document.getElementById('clearWalls').addEventListener('click', () => { 
         set(dbRefs.walls, []); 
         state.activeSelectWallIndex = null; 
         redrawWalls(); 
     });
 
-    document.getElementById('clearLights').addEventListener('click', () => { 
-        set(dbRefs.lights, null); 
-        state.activeSelectLightId = null; 
+    // --- FIX 2B: LIGHT RADIUS & TYPE ---
+    document.getElementById('lightRadiusInput').addEventListener('input', (e) => {
+        const newRadius = parseInt(e.target.value, 10);
+        
+        // BUG 2B FIX: Only edit a placed light if we explicitly clicked it (not in 'Place Light' mode)
+        if (!state.isLightAddMode && state.activeSelectLightId && state.lights[state.activeSelectLightId]) {
+            state.lights[state.activeSelectLightId].radius = newRadius; 
+            updateLighting(); 
+            set(dbRef(db, `lights/${state.activeSelectLightId}/radius`), newRadius); 
+        }
     });
+
+    document.getElementById('lightTypeSelect').addEventListener('change', (e) => {
+        const type = e.target.value;
+        const radiusInput = document.getElementById('lightRadiusInput');
+        
+        // Auto-set the radius slider based on the type
+        if (type === 'ceiling') radiusInput.value = 400;
+        if (type === 'emergency') radiusInput.value = 120;
+        
+        // BUG 2B FIX: Only edit a placed light if we explicitly clicked it
+        if (!state.isLightAddMode && state.activeSelectLightId && state.lights[state.activeSelectLightId]) {
+            set(dbRef(db, `lights/${state.activeSelectLightId}/type`), type);
+            set(dbRef(db, `lights/${state.activeSelectLightId}/radius`), parseInt(radiusInput.value, 10));
+        }
+    });
+
+    // --- FIX 2A: CLEAR ALL LIGHTS GHOSTING ---
+    document.getElementById('clearLights').addEventListener('click', () => { 
+        // 1. Send clear command to Firebase
+        set(dbRefs.lights, null); 
+        
+        // 2. BUG 2A FIX: Instantly wipe local state to prevent any network-lag ghosts
+        state.lights = {};
+        state.activeSelectLightId = null; 
+        
+        // 3. Destroy all existing marker graphics from the canvas immediately
+        if (state.lightMarkers) {
+            Object.keys(state.lightMarkers).forEach(id => {
+                if (state.lightMarkers[id]) {
+                    lightMarkerLayer.removeChild(state.lightMarkers[id]);
+                    state.lightMarkers[id].destroy();
+                }
+            });
+            state.lightMarkers = {};
+        }
+        
+        // 4. Force a clean render update
+        updateLighting();
+    });
+
     const modeSelect = document.getElementById('modeSelect');
     const gmTools = document.getElementById('gmTools');
     const modeToggle = document.getElementById('mode-toggle');
@@ -398,25 +424,41 @@ export function setupUI() {
     // Force Play Mode immediately on load
     modeSelect.dispatchEvent(new Event('change'));
 
+    // --- INSTANT MAP PREVIEW UPLOAD ---
     document.getElementById('mapUpload').addEventListener('change', async (event) => {
         const file = event.target.files[0];
         if (!file) return;
         
-        const fileLabel = document.querySelector('label[for="mapUpload"] strong');
-        fileLabel.innerText = "Uploading... ";
+        const sectionHeader = document.querySelector('#sec-cartography h4');
+        if (sectionHeader) sectionHeader.innerText = "Cartography (Uploading...) ⏳";
         document.getElementById('mapUpload').disabled = true;
 
+        // 1. INSTANT LOCAL PREVIEW FOR THE GM (Zero Latency)
+        try {
+            const localUrl = URL.createObjectURL(file);
+            if (file.type !== 'application/pdf') {
+                const texture = await PIXI.Texture.fromURL(localUrl);
+                displayMap(texture);
+                state.currentMapUrl = localUrl; 
+            }
+        } catch (previewErr) {
+            console.warn("Local preview skipped:", previewErr);
+        }
+
+        // 2. BACKGROUND UPLOAD FOR PLAYERS
         try {
             const sRef = storageRef(storage, `maps/${Date.now()}_${file.name}`);
             await uploadBytes(sRef, file);
             const url = await getDownloadURL(sRef);
+            
+            // Sync the final cloud URL to everyone else
             set(dbRefs.mapData, { url: url, type: file.type });
         } catch (e) {
             console.error(e);
             alert("Upload failed.");
         }
         
-        fileLabel.innerText = "Map: ";
+        if (sectionHeader) sectionHeader.innerText = "Cartography";
         document.getElementById('mapUpload').disabled = false;
     });
 }

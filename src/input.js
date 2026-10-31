@@ -248,7 +248,7 @@ export function setupInputs() {
 
     app.view.addEventListener('contextmenu', e => e.preventDefault());
 
-    window.addEventListener('keydown', (e) => {
+   window.addEventListener('keydown', (e) => {
         if (e.code === 'Space') {
             const tag = document.activeElement ? document.activeElement.tagName : '';
             if (tag === 'SELECT' || tag === 'INPUT') return; 
@@ -258,12 +258,20 @@ export function setupInputs() {
             if (!state.isPanning && state.currentMapSprite) app.view.style.cursor = 'grab';
         }
 
-        if ((e.code === 'Backspace' || e.code === 'Delete') && state.activeSelectWallIndex !== null) {
-            state.walls.splice(state.activeSelectWallIndex, 1);
-            set(dbRefs.walls, state.walls);
-            state.activeSelectWallIndex = null;
-            redrawWalls();
-            updateLighting();
+        if (e.code === 'Backspace' || e.code === 'Delete') {
+            // Check if a wall is selected
+            if (state.activeSelectWallIndex !== null) {
+                state.walls.splice(state.activeSelectWallIndex, 1);
+                set(dbRefs.walls, state.walls);
+                state.activeSelectWallIndex = null;
+                redrawWalls();
+                updateLighting();
+            } 
+            // Check if a light is selected
+            else if (state.activeSelectLightId !== null) {
+                set(dbRef(db, `lights/${state.activeSelectLightId}`), null);
+                state.activeSelectLightId = null;
+            }
         }
     });
 
