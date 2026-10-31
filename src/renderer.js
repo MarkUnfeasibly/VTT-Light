@@ -103,7 +103,10 @@ export function getGradientTexture(radius) {
 
 export function drawMarkerIcon(marker, type, isSelected) {
     marker.clear();
-    const color = type === 'emergency' ? 0xff0000 : 0xffd700;
+    let color = 0xffd700; // ceiling
+    if (type === 'emergency' || type === 'emergency_flicker') color = 0xff0000;
+    if (type === 'warning') color = 0xff8c00; // amber
+
     marker.beginFill(color, 0.8);
     marker.drawCircle(0, 0, 12);
     marker.endFill();
@@ -375,7 +378,8 @@ export function updateLighting() {
         const radius = light.radius || 400; 
         let tintColor = 0xfff5cc; 
         let tintAlpha = 0.2;
-        if (light.type === 'emergency') { tintColor = 0xff3300; tintAlpha = 0.5; } 
+        if (light.type === 'emergency' || light.type === 'emergency_flicker') { tintColor = 0xff3300; tintAlpha = 0.5; } 
+        else if (light.type === 'warning') { tintColor = 0xffa500; tintAlpha = 0.6; } // Amber/Orange
         else if (light.type === 'tokenLantern') { tintColor = 0xffe699; tintAlpha = 0.35; }
 
         const originPt = { x: light.x, y: light.y };
@@ -404,6 +408,13 @@ export function updateLighting() {
 
         const colorGroup = new PIXI.Container();
         colorGroup.addChild(colorSprite); colorGroup.addChild(maskGraphicsColor);
+        
+        // Tag for the animation loop
+        eraseGroup.lightType = light.type;
+        colorGroup.lightType = light.type;
+        eraseGroup.baseAlpha = 1.0;
+        colorGroup.baseAlpha = tintAlpha;
+        
         lanternLayer.addChild(colorGroup);
     });
 
@@ -448,3 +459,34 @@ export function drawHalos() {
         }
     }
 }
+// --- ANIMATED LIGHTING ENGINE ---
+app.ticker.add(() => {
+    const time = Date.now();
+    
+    // Calculate the warning pulse (a smooth sine wave between 0.2 and 1.0)
+    // Speed: 800ms per full cycle
+    const pulseFactor = 0.6 + (Math.sin(time / 200) * 0.4); 
+    
+    // Calculate erratic flicker (95% chance of 1.0, 5% chance of dropping low)
+    const flickerFactor = Math.random() > 0.95 ? (Math.random() * 0.4 + 0.1) : 1.0;
+
+    // Apply to erase layer (the hole cut in the darkness)
+    for (let i = 0; i < eraseLayer.children.length; i++) {
+        const group = eraseLayer.children[i];
+        if (group.lightType === 'warning') {
+            group.alpha = pulseFactor;
+        } else if (group.lightType === 'emergency_flicker' || group.lightType === 'ceiling_flicker') {
+            group.alpha = flickerFactor;
+        }
+    }
+    
+    // Apply to color layer (the tinted overlay)
+    for (let i = 0; i < lanternLayer.children.length; i++) {
+        const group = lanternLayer.children[i];
+        if (group.lightType === 'warning') {
+            group.alpha = group.baseAlpha * pulseFactor;
+        } else if (group.lightType === 'emergency_flicker' || group.lightType === 'ceiling_flicker') {
+            group.alpha = group.baseAlpha * flickerFactor;
+        }
+    }
+});
