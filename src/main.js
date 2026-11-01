@@ -111,23 +111,42 @@ function startApp() {
     onValue(dbRefs.tokens, (snapshot) => {
         const data = snapshot.val();
         if (!data) {
-            const initialTokens = {};
-            for (let i = 1; i <= 6; i++) {
-                initialTokens[i] = { x: (i * 60) - 210, y: 0, hasLantern: false };
-            }
-            set(dbRefs.tokens, initialTokens);
+            // V1.4 Player & Token alignment: Do not auto-spawn default 1-6 array if cleared
+            Object.keys(state.tokenSprites || {}).forEach(id => {
+                if (state.tokenSprites[id]) {
+                    tokenLayer.removeChild(state.tokenSprites[id]);
+                    state.tokenSprites[id].destroy({ children: true });
+                }
+            });
+            state.tokens = {};
+            state.tokenSprites = {};
+            updateLighting();
+            drawHalos();
             return;
         }
 
-        for (let i = 1; i <= 6; i++) {
-            if (!data[i]) continue;
-            
+        // V1.4 Player & Token alignment: Support dynamic token count instead of hardcoded 6
+        const keys = Object.keys(data);
+        
+        // Remove sprites that no longer exist in the database
+        Object.keys(state.tokenSprites || {}).forEach(id => {
+            if (!data[id]) {
+                if (state.tokenSprites[id]) {
+                    tokenLayer.removeChild(state.tokenSprites[id]);
+                    state.tokenSprites[id].destroy({ children: true });
+                }
+                delete state.tokenSprites[id];
+                delete state.tokens[id];
+            }
+        });
+
+        keys.forEach(key => {
+            const i = parseInt(key);
             if (!state.tokens[i]) state.tokens[i] = { x: 0, y: 0, hasLantern: false };
 
             if (state.activeDragTokenId !== i.toString()) {
                 state.tokens[i].x = data[i].x;
                 state.tokens[i].y = data[i].y;
-                // NEW: Sync the origin lock positions
                 state.tokens[i].originX = data[i].originX;
                 state.tokens[i].originY = data[i].originY;
                 if (state.tokenSprites[i]) {
@@ -136,18 +155,20 @@ function startApp() {
                 }
             }
             
+            // Sync custom fields from database
             state.tokens[i].hasLantern = data[i].hasLantern;
+            if (data[i].color) state.tokens[i].color = data[i].color;
+            if (data[i].label) state.tokens[i].label = data[i].label;
             
             if (!state.tokenSprites[i]) {
                 state.tokenSprites[i] = createTokenSprite(i);
                 tokenLayer.addChild(state.tokenSprites[i]);
             }
             
-            state.tokenSprites[i].visible = (i <= state.tokenSettings.count);
-            drawTokenIcon(state.tokenSprites[i].getChildAt(0), state.tokenSprites[i], i);
-        }
+            state.tokenSprites[i].visible = true; // Visibility managed by existence in DB now
+        });
         updateLighting();
-        drawHalos(); // NEW: Redraw halos whenever tokens update
+        drawHalos();
     });
 
     onValue(dbRefs.movementLock, (snapshot) => {

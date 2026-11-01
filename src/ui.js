@@ -7,6 +7,7 @@ import {
 } from './renderer.js';
 import { db, set, dbRef, dbRefs, storage, storageRef, uploadBytes, getDownloadURL, get } from './firebase.js';
 import { isAdminSeated, onPlayerChange } from './players.js';
+import { playerDB } from './playerdb.js';
 import * as PIXI from 'pixi.js';
 
 export function setupUI() {
@@ -65,8 +66,14 @@ export function setupUI() {
         if (!newLockState && state.tokens) {
             Object.keys(state.tokens).forEach(id => {
                 const t = state.tokens[id];
-                set(dbRef(db, `tokens/${id}/originX`), t.x);
-                set(dbRef(db, `tokens/${id}/originY`), t.y);
+                if (!t || typeof t !== 'object') return; // Protect against null array gaps
+                
+                // Fallback safely to 0 if x or y are missing to prevent Firebase undefined crash
+                const startX = t.x !== undefined ? t.x : 0;
+                const startY = t.y !== undefined ? t.y : 0;
+                
+                set(dbRef(db, `tokens/${id}/originX`), startX);
+                set(dbRef(db, `tokens/${id}/originY`), startY);
             });
         }
     });
@@ -342,6 +349,158 @@ export function setupUI() {
     // any route (switch, label, gate, or code), re-sync the switch visuals.
     modeSelect.addEventListener('change', syncModeToggle);
     syncModeToggle();
+
+    // V1.4 Player & Token alignment: Token spawner suite for custom labels and colors
+    // --- FEATURE: TOKEN SPAWNING (CREW & NPCS) ---
+    // Helper to extract initials (up to 2 chars) from a name
+    function getInitials(name) {
+        if (!name) return "?";
+        const parts = name.trim().split(' ');
+        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+        // V1.4 Fix: Use only the first letter for single-word names (e.g., "Sean" -> "S", not "SE")
+        return name.charAt(0).toUpperCase();
+    }
+
+    document.getElementById('btnSpawnCrew').addEventListener('click', async () => {
+        // Read the local player database
+        const players = await playerDB.getAllPlayers();
+        if (!players || players.length === 0) {
+            alert("No crew registered in manifest.");
+            return;
+        }
+
+        // 1. Force the count to 0 so we always get a clean, fresh spawn
+        let currentCount = 0; 
+        const newTokens = {}; // Bundle all tokens together
+        
+        players.forEach(p => {
+            // 2. Strict GM check: Ensure we skip anyone with the Admin flag
+            if (p.isAdmin === true) return; 
+            
+            currentCount++;
+            const label = getInitials(p.name);
+            const color = p.color || "#3f3f46";
+            
+            // Build the token payload locally
+            newTokens[currentCount] = {
+                x: 0,
+                y: 0,
+                color: color,
+                label: label,
+                hasLantern: false
+            };
+        });
+        
+        // 3. AWAIT the data write: Guarantee the custom colors are in the database FIRST
+        await set(dbRef(db, 'tokens'), newTokens);
+        
+        // 4. NOW tell the engine to render them (it will find the colors waiting for it)
+        await set(dbRefs.tokenSettings, { ...state.tokenSettings, count: currentCount });
+    });
+
+    document.getElementById('btnSpawnNPC').addEventListener('click', () => {
+        const color = document.getElementById('spawnColor').value;
+        const label = document.getElementById('spawnLabel').value.trim() || "?";
+        
+        let currentCount = state.tokenSettings ? state.tokenSettings.count || 0 : 0;
+        currentCount++;
+        
+        // Spawn slightly offset from center so they don't pile up perfectly on each other
+        const offsetX = (Math.random() * 100) - 50;
+        const offsetY = (Math.random() * 100) - 50;
+        
+        set(dbRef(db, `tokens/${currentCount}`), {
+            x: offsetX,
+            y: offsetY,
+            color: color,
+            label: label,
+            hasLantern: false
+        });
+        
+        set(dbRefs.tokenSettings, { ...state.tokenSettings, count: currentCount });
+        document.getElementById('spawnLabel').value = ''; // clear input
+    });
+
+    document.getElementById('btnClearTokens').addEventListener('click', () => {
+        if (confirm("Remove all tokens from the map?")) {
+            set(dbRef(db, 'tokens'), null);
+            set(dbRefs.tokenSettings, { ...state.tokenSettings, count: 0 });
+        }
+    });
+
+    
+    // V1.4 Player & Token alignment: Token spawner suite for custom labels and colors
+    // --- FEATURE: TOKEN SPAWNING (CREW & NPCS) ---
+    // Helper to extract initials (up to 2 chars) from a name
+    function getInitials(name) {
+        if (!name) return "?";
+        const parts = name.trim().split(' ');
+        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+        // V1.4 Fix: Use only the first letter for single-word names (e.g., "Sean" -> "S", not "SE")
+        return name.charAt(0).toUpperCase();
+    }
+
+    document.getElementById('btnSpawnCrew').addEventListener('click', async () => {
+        // Read the local player database
+        const players = await playerDB.getAllPlayers();
+        if (!players || players.length === 0) {
+            alert("No crew registered in manifest.");
+            return;
+        }
+
+        // We reset tokenSettings count to handle the new batch
+        let currentCount = state.tokenSettings ? state.tokenSettings.count || 0 : 0;
+        
+        players.forEach(p => {
+            // V1.5 Fix: Do not spawn a map token for the GM/Admin
+            if (p.isAdmin) return;
+            
+            currentCount++;
+            const label = getInitials(p.name);
+            const color = p.color || "#3f3f46";
+            
+            // Spawn in center of map
+            set(dbRef(db, `tokens/${currentCount}`), {
+                x: 0,
+                y: 0,
+                color: color,
+                label: label,
+                hasLantern: false
+            });
+        });
+        
+        set(dbRefs.tokenSettings, { ...state.tokenSettings, count: currentCount });
+    });
+
+    document.getElementById('btnSpawnNPC').addEventListener('click', () => {
+        const color = document.getElementById('spawnColor').value;
+        const label = document.getElementById('spawnLabel').value.trim() || "?";
+        
+        let currentCount = state.tokenSettings ? state.tokenSettings.count || 0 : 0;
+        currentCount++;
+        
+        // Spawn slightly offset from center so they don't pile up perfectly on each other
+        const offsetX = (Math.random() * 100) - 50;
+        const offsetY = (Math.random() * 100) - 50;
+        
+        set(dbRef(db, `tokens/${currentCount}`), {
+            x: offsetX,
+            y: offsetY,
+            color: color,
+            label: label,
+            hasLantern: false
+        });
+        
+        set(dbRefs.tokenSettings, { ...state.tokenSettings, count: currentCount });
+        document.getElementById('spawnLabel').value = ''; // clear input
+    });
+
+    document.getElementById('btnClearTokens').addEventListener('click', () => {
+        if (confirm("Remove all tokens from the map?")) {
+            set(dbRef(db, 'tokens'), null);
+            set(dbRefs.tokenSettings, { ...state.tokenSettings, count: 0 });
+        }
+    });
 
     // --- ACCESS GATE -------------------------------------------------------
     // A plain URL (/) is always play-mode only.

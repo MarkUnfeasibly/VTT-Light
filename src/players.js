@@ -12,6 +12,7 @@
 
 import { playerDB, newId } from './playerdb.js';
 import { discordIdentity, displayName, getUser } from './auth.js';
+import { initPanelDrag } from './panels.js';
 import { startDiscordLink, handleDiscordRedirect, getDiscordClientId, setDiscordClientId, hasSharedDiscordClientId, avatarUrl } from './discord.js';
 
 const SEAT_KEY = 'vtt_player_name';       // legacy key used by pops.js
@@ -74,12 +75,12 @@ function esc(s) {
     }[c]));
 }
 
-function playerAvatarHtml(p, size = 26) {
-    const url = (p.discord && p.discord.avatar) || avatarUrl('0', null);
-    const img = (p.discord && p.discord.avatar)
-        ? `<img src="${p.discord.avatar}" alt="" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;">`
-        : `<span style="display:inline-flex;width:${size}px;height:${size}px;border-radius:50%;align-items:center;justify-content:center;background:${esc(p.color || '#3f3f46')};font-size:${Math.round(size * 0.55)}px;">${esc((p.name || '?')[0].toUpperCase())}</span>`;
-    return img;
+function playerAvatarHtml(p, size = 26, label = "") {
+    const color = esc(p.color || '#3f3f46');
+    // Minimalist Token: Diamond shape with number inside
+    return `<div style="width:${size}px; height:${size}px; position:relative; display:flex; align-items:center; justify-content:center; transform:rotate(45deg); background:${color}; border: 1px solid #fff;">
+        <span style="transform:rotate(-45deg); color:#fff; font-weight:bold; font-size:12px;">${label}</span>
+    </div>`;
 }
 
 async function renderCrew() {
@@ -103,7 +104,7 @@ async function renderCrew() {
         return;
     }
 
-    listEl.innerHTML = players.map((p) => {
+    listEl.innerHTML = players.map((p, index) => {
         const isSeated = seated && seated.id === p.id;
         const discordChip = p.discord
             ? `<span title="Discord: ${esc(p.discord.handle || p.discord.username)}" style="font-size:9px; background:#5865F2; color:#fff; padding:1px 5px; border-radius:4px;">${esc(p.discord.username)}</span>`
@@ -129,7 +130,7 @@ async function renderCrew() {
         <div class="crew-row" data-id="${p.id}" title="${isOwnRecord(p) ? 'Click to take or leave your own seat' : 'Seats are personal — this crew member must sign in themselves'}" style="
             display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; cursor:${isOwnRecord(p) ? 'pointer' : 'default'};
             background:${isSeated ? '#04302c' : 'transparent'}; border:1px solid ${isSeated ? '#00ffcc55' : (isOwnRecord(p) ? '#27272a' : 'transparent')};">
-            ${playerAvatarHtml(p)}
+            ${playerAvatarHtml(p, 26, index + 1)}
             <div style="flex:1; min-width:0;">
                 <div style="font-size:12px; font-weight:600; color:${isSeated ? '#00ffcc' : (isOwnRecord(p) ? '#d4d4d8' : '#a1a1aa')}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                     ${esc(p.name)} ${adminBadge} ${isOwnRecord(p) && !isSeated ? '<span title="Your seat" style="font-size:10px;">🛅</span>' : ''}
@@ -333,16 +334,17 @@ async function saveEditor() {
 }
 
 function wireEditor() {
-    if (!modalEl('player-edit-modal')) return;
+    const modal = modalEl('player-edit-modal');
+    if (!modal) return;
+    
+    // Initialize drag physics so the GM can move it out of the way of the color picker
+    initPanelDrag(modal);
 
     modalEl('pe-save').addEventListener('click', saveEditor);
     modalEl('pe-cancel').addEventListener('click', closeEditor);
     modalEl('pe-cancel-x').addEventListener('click', closeEditor);
 
-    // Click on the dark backdrop closes the modal.
-    modalEl('player-edit-modal').addEventListener('click', (e) => {
-        if (e.target.id === 'player-edit-modal') closeEditor();
-    });
+
 
     modalEl('pe-delete').addEventListener('click', async () => {
         const p = editingId ? players.find((x) => x.id === editingId) : null;

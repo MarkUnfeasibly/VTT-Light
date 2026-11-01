@@ -160,8 +160,13 @@ export const TOKEN_COLORS = [
     0x00acc1  // 6
 ];
 
-export function drawTokenIcon(graphics, hasLantern, id) {
-    const color = TOKEN_COLORS[id - 1] || 0x2d88ff; // Fallback to blue if > 6
+// V1.4 Player & Token alignment: Custom hex color support
+export function drawTokenIcon(graphics, hasLantern, id, customColorHex = null) {
+    console.log(`[V1.4 Debug] drawTokenIcon called for id: ${id}, color: ${customColorHex}`);
+    let color = TOKEN_COLORS[id - 1] || 0x2d88ff; 
+    if (customColorHex) {
+        color = parseInt(customColorHex.replace('#', '0x'), 16);
+    }
 
     graphics.clear();
     graphics.beginFill(color); 
@@ -181,21 +186,31 @@ export function drawTokenIcon(graphics, hasLantern, id) {
     }
 }
 
+// V1.4 Player & Token alignment: Dynamic token labels based on initials
 export function createTokenSprite(id) {
     const container = new PIXI.Container();
     container.eventMode = 'static';
     container.cursor = 'pointer';
+    container.tokenId = id; // Tag for visual sync loop
 
     const bg = new PIXI.Graphics();
-    drawTokenIcon(bg, false, id); // Pass the ID for color picking
+    container.bgGraphic = bg; // Tag for visual sync loop
     
-    const text = new PIXI.Text(id.toString(), {
+    const customColor = (state.tokens && state.tokens[id] && state.tokens[id].color) ? state.tokens[id].color : null;
+    drawTokenIcon(bg, false, id, customColor);
+    container.lastColor = customColor;
+    container.lastHasLantern = false;
+    
+    const customLabel = (state.tokens && state.tokens[id] && state.tokens[id].label) ? state.tokens[id].label : id.toString();
+    const text = new PIXI.Text(customLabel, {
         fontFamily: 'system-ui',
-        fontSize: 18,
+        fontSize: 14,
         fill: 0xffffff,
         fontWeight: 'bold'
     });
     text.anchor.set(0.5);
+    container.textObj = text; // Tag for visual sync loop
+    container.lastLabel = customLabel;
 
     container.addChild(bg);
     container.addChild(text);
@@ -450,7 +465,8 @@ export function drawHalos() {
             if (t) {
                 const ox = t.originX !== undefined ? t.originX : t.x;
                 const oy = t.originY !== undefined ? t.originY : t.y;
-                const color = TOKEN_COLORS[i - 1] || 0x00ffcc;
+                let color = TOKEN_COLORS[i - 1] || 0x00ffcc;
+                if (t.color) color = parseInt(t.color.replace('#', '0x'), 16);
                 
                 // Set the specific color for this token's ring
                 haloLayer.lineStyle(3, color, 0.4); 
@@ -462,6 +478,27 @@ export function drawHalos() {
 // --- ANIMATED LIGHTING ENGINE ---
 app.ticker.add(() => {
     const time = Date.now();
+    
+    // V1.6 Player & Token alignment: Real-time visual sync. 
+    // This runs at 60 FPS but only performs local memory string comparisons, putting absolutely zero load on the network or CPU.
+    // It completely defeats Firebase state/caching race conditions.
+    const tokensLen = tokenLayer.children.length;
+    for (let i = 0; i < tokensLen; i++) {
+        const container = tokenLayer.children[i];
+        if (container.tokenId && state.tokens && state.tokens[container.tokenId]) {
+            const tData = state.tokens[container.tokenId];
+            
+            if (container.lastColor !== tData.color || container.lastHasLantern !== tData.hasLantern) {
+                drawTokenIcon(container.bgGraphic, tData.hasLantern, container.tokenId, tData.color);
+                container.lastColor = tData.color;
+                container.lastHasLantern = tData.hasLantern;
+            }
+            if (container.lastLabel !== tData.label) {
+                container.textObj.text = tData.label || container.tokenId.toString();
+                container.lastLabel = tData.label;
+            }
+        }
+    }
     
     // Calculate the warning pulse (a smooth sine wave between 0.2 and 1.0)
     // Speed: 800ms per full cycle
