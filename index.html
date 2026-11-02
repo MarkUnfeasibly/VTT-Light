@@ -217,10 +217,19 @@
         <div id="vtt-container"></div>
 
         <!-- Map Nav Overlay (travels with the viewport) -->
-        <div id="zoomControls" style="position: absolute; bottom: 12px; right: 12px; z-index: 15000; display: flex; gap: 8px; background: rgba(18, 18, 18, 0.9); padding: 8px; border-radius: 8px; border: 1px solid #27272a; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-             <button id="btnZoomIn" style="width: 36px; height: 36px; font-size: 18px; font-weight: bold; padding:0;">+</button>
-             <button id="btnCenter" style="width: 36px; height: 36px; font-size: 18px; padding:0;" title="Center Map">⌖</button>
-             <button id="btnZoomOut" style="width: 36px; height: 36px; font-size: 18px; font-weight: bold; padding:0;">-</button>
+        <div style="position: absolute; bottom: 12px; right: 12px; z-index: 15000; display: flex; gap: 12px; align-items: center;">
+             <!-- Dynamic Scale Bar -->
+             <div id="scaleBar" style="background: rgba(18, 18, 18, 0.9); padding: 8px 12px; border-radius: 8px; border: 1px solid #27272a; box-shadow: 0 4px 12px rgba(0,0,0,0.5); font-family: monospace; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+                 <div style="width: 50px; height: 4px; background: #00ffcc; border-left: 2px solid #fff; border-right: 2px solid #fff;"></div>
+                 <span id="scaleText" style="color: #00ffcc; font-weight: bold; width: 60px; text-align: right;">5.0 ft</span>
+             </div>
+             
+             <!-- Zoom Controls -->
+             <div id="zoomControls" style="display: flex; gap: 8px; background: rgba(18, 18, 18, 0.9); padding: 8px; border-radius: 8px; border: 1px solid #27272a; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+                 <button id="btnZoomIn" style="width: 36px; height: 36px; font-size: 18px; font-weight: bold; padding:0;">+</button>
+                 <button id="btnCenter" style="width: 36px; height: 36px; font-size: 18px; padding:0;" title="Center Map">⌖</button>
+                 <button id="btnZoomOut" style="width: 36px; height: 36px; font-size: 18px; font-weight: bold; padding:0;">-</button>
+             </div>
         </div>
     </div>
 
@@ -276,6 +285,17 @@
                     <label for="importScene" style="background: #4a148c; border: 1px solid #6a1b9a; padding: 6px 10px; border-radius: 6px; cursor: pointer; text-align: center; flex: 1; font-size: 12px; color: #e4e4e7;">📂 Import</label>
                     <input type="file" id="importScene" accept=".json" style="display: none;" />
                 </div>
+                
+                <h4 style="margin-top: 10px;">Grid Scale</h4>
+                <div style="display: flex; gap: 4px; align-items: center; font-size: 11px; color: #a1a1aa; margin-bottom: 8px;">
+                    <input type="number" id="scalePixels" value="70" style="width:50px; padding:4px;"> px = 
+                    <input type="number" id="scaleDistance" value="5" style="width:40px; padding:4px;">
+                    <select id="scaleUnit" style="width:50px; padding:4px;">
+                        <option value="ft">ft</option>
+                        <option value="m">m</option>
+                    </select>
+                </div>
+                <button id="btnCalibrate" style="background: #1e88e5; border-color: #1565c0;">📏 Calibrate by Dragging</button>
             </div>
 
            <div class="gm-section" id="sec-architecture">

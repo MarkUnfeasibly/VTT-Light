@@ -280,6 +280,8 @@ export function fitMapToScreen() {
     const scaleX = VTT_WIDTH / currentWidth;
     const scaleY = VTT_HEIGHT / currentHeight;
     mapContainer.scale.set(Math.min(scaleX, scaleY) * 0.95); 
+    
+    updateScaleBar();
 }
 
 export function redrawWalls() {
@@ -527,3 +529,96 @@ app.ticker.add(() => {
         }
     }
 });
+
+
+export const rulerLayer = new PIXI.Graphics();
+export const rulerText = new PIXI.Text('', { fontFamily: 'system-ui', fontSize: 16, fill: 0xffffff, fontWeight: 'bold', dropShadow: true, dropShadowDistance: 2 });
+rulerText.anchor.set(0.5, 1);
+
+const rulerContainer = new PIXI.Container();
+rulerContainer.addChild(rulerLayer);
+rulerContainer.addChild(rulerText);
+app.stage.addChild(rulerContainer); 
+
+let isRuling = false;
+let ruleStartGlobal = null;
+
+app.stage.eventMode = 'static';
+app.stage.hitArea = new PIXI.Rectangle(0, 0, 10000, 10000); 
+
+app.stage.on('pointerdown', (e) => {
+    if (e.shiftKey || state.isCalibrating) {
+        isRuling = true;
+        ruleStartGlobal = { x: e.global.x, y: e.global.y };
+        rulerLayer.clear();
+        rulerText.text = '';
+    }
+});
+
+app.stage.on('pointermove', (e) => {
+    if (isRuling && ruleStartGlobal) {
+        const currentGlobal = e.global;
+        rulerLayer.clear();
+        rulerLayer.lineStyle(3, state.isCalibrating ? 0xff5900 : 0x00ffcc, 0.8);
+        rulerLayer.moveTo(ruleStartGlobal.x, ruleStartGlobal.y);
+        rulerLayer.lineTo(currentGlobal.x, currentGlobal.y);
+
+        const localStart = mapContainer.toLocal(ruleStartGlobal);
+        const localEnd = mapContainer.toLocal(currentGlobal);
+        const pxDistance = Math.hypot(localEnd.x - localStart.x, localEnd.y - localStart.y);
+
+        const scale = state.mapScale || { pixels: 70, distance: 5, unit: 'ft' };
+        let realDist = (pxDistance / scale.pixels) * scale.distance;
+
+        rulerText.text = `${realDist.toFixed(1)} ${scale.unit}`;
+        rulerText.x = currentGlobal.x;
+        rulerText.y = currentGlobal.y - 15;
+        
+        if (state.isCalibrating) {
+            rulerText.text = `${Math.round(pxDistance)} px`;
+        }
+    }
+});
+
+app.stage.on('pointerup', (e) => {
+    if (state.isCalibrating && isRuling && ruleStartGlobal) {
+        const localStart = mapContainer.toLocal(ruleStartGlobal);
+        const localEnd = mapContainer.toLocal(e.global);
+        const pxDistance = Math.hypot(localEnd.x - localStart.x, localEnd.y - localStart.y);
+        
+        if (pxDistance > 10) {
+            const distStr = prompt(`You dragged ${Math.round(pxDistance)} pixels.\nHow much real distance does this represent?`, "5");
+            if (distStr && !isNaN(parseFloat(distStr))) {
+                const unit = document.getElementById('scaleUnit').value || 'ft';
+                set(dbRef(db, 'mapScale'), { pixels: pxDistance, distance: parseFloat(distStr), unit: unit });
+            }
+        }
+        state.isCalibrating = false;
+        const btn = document.getElementById('btnCalibrate');
+        if (btn) {
+            btn.innerText = "📏 Calibrate by Dragging";
+            btn.style.background = "#1e88e5";
+        }
+        app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+    }
+    
+    isRuling = false;
+    ruleStartGlobal = null;
+    rulerLayer.clear();
+    rulerText.text = '';
+});
+
+export function updateScaleBar() {
+    const scaleText = document.getElementById('scaleText');
+    if (!scaleText) return;
+
+    const localPx = 50 / mapContainer.scale.x; 
+    const scale = state.mapScale || { pixels: 70, distance: 5, unit: 'ft' };
+    
+    let realDist = (localPx / scale.pixels) * scale.distance;
+    
+    if (realDist < 10) realDist = realDist.toFixed(1);
+    else realDist = Math.round(realDist);
+    
+    scaleText.innerText = `${realDist} ${scale.unit}`;
+}

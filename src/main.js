@@ -14,7 +14,7 @@ import {
     app, 
     redrawWalls, updateLighting, displayMap, 
     createLightMarker, createTokenSprite, drawMarkerIcon, drawTokenIcon,
-    lightMarkerLayer, tokenLayer, haloLayer, drawHalos
+    lightMarkerLayer, tokenLayer, haloLayer, drawHalos, updateScaleBar
 } from './renderer.js';
 
 // 1. Attach PixiJS Canvas to the DOM
@@ -221,6 +221,19 @@ function startApp() {
     onValue(dbRefs.haloRadius, (snapshot) => {
         state.haloRadius = snapshot.val() || 200;
         drawHalos();
+    });
+
+    onValue(dbRef(db, 'mapScale'), (snapshot) => {
+        state.mapScale = snapshot.val() || { pixels: 70, distance: 5, unit: 'ft' };
+        
+        const pxInput = document.getElementById('scalePixels');
+        const distInput = document.getElementById('scaleDistance');
+        const unitInput = document.getElementById('scaleUnit');
+        if (pxInput) pxInput.value = Math.round(state.mapScale.pixels);
+        if (distInput) distInput.value = state.mapScale.distance;
+        if (unitInput) unitInput.value = state.mapScale.unit;
+
+        updateScaleBar();
     });
 }
 

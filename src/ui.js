@@ -3,7 +3,7 @@ import { state } from './state.js';
 import { 
     app, mapContainer, fitMapToScreen, redrawWalls, updateLighting, 
     wallLayer, previewLayer, lightMarkerLayer, fowContainer, lightingContainer,
-    VTT_WIDTH, VTT_HEIGHT 
+    VTT_WIDTH, VTT_HEIGHT, updateScaleBar 
 } from './renderer.js';
 import { db, set, dbRef, dbRefs, storage, storageRef, uploadBytes, getDownloadURL, get } from './firebase.js';
 import { isAdminSeated, onPlayerChange } from './players.js';
@@ -35,8 +35,32 @@ export function setupUI() {
         // Adjust map position so the point we zoomed into stays dead center
         mapContainer.x = screenCenterX - localPointer.x * mapContainer.scale.x;
         mapContainer.y = screenCenterY - localPointer.y * mapContainer.scale.y;
-    }
+        
+        updateScaleBar();
+    
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+        }
+    });
 
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}
     document.getElementById('btnZoomIn').addEventListener('click', () => {
         applyZoom(1.2); // Zoom in by 20%
     });
@@ -75,8 +99,30 @@ export function setupUI() {
                 set(dbRef(db, `tokens/${id}/originX`), startX);
                 set(dbRef(db, `tokens/${id}/originY`), startY);
             });
+        
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
         }
     });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}    });
 
     // --- FEATURE: EXPORT SCENE ---
     document.getElementById('exportScene').addEventListener('click', async () => {
@@ -98,8 +144,30 @@ export function setupUI() {
         } catch (e) {
             console.error("Export failed:", e);
             alert("Failed to export scene.");
+        
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
         }
     });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}    });
 
     // --- FEATURE: IMPORT SCENE ---
     document.getElementById('importScene').addEventListener('change', (event) => {
@@ -125,8 +193,30 @@ export function setupUI() {
             } catch (err) {
                 console.error("Import failed:", err);
                 alert("Invalid scene file.");
-            }
-        };
+            
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+        }
+    });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}        };
         reader.readAsText(file);
     });
 
@@ -159,8 +249,30 @@ export function setupUI() {
         } else {
             state.activeSelectWallIndex = null;
             redrawWalls();
-        }
         
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+        }
+    });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}        
         // Update Wall button visual state
         e.target.style.background = state.isDrawMode ? "#2e7d32" : "#444";
         e.target.innerText = state.isDrawMode ? "✏️ Wall" : "✏️ Wall (OFF)";
@@ -184,8 +296,30 @@ export function setupUI() {
         } else {
             state.activeSelectWallIndex = null;
             redrawWalls();
-        }
         
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+        }
+    });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}        
         // Update Door button visual state (Using the same green as walls)
         e.target.style.background = state.isDoorDrawMode ? "#2e7d32" : "#444";
         e.target.innerText = state.isDoorDrawMode ? "🚪 Door" : "🚪 Door (OFF)";
@@ -201,9 +335,53 @@ export function setupUI() {
                 set(dbRefs.walls, state.walls);
                 redrawWalls();
                 updateLighting();
-            }
+            
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
         }
     });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}        
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+        }
+    });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}    });
 
     document.getElementById('toggleLightMode').addEventListener('click', (e) => {
         state.isLightAddMode = !state.isLightAddMode;
@@ -228,8 +406,30 @@ export function setupUI() {
         } else {
             e.target.style.background = "#27272a";
             app.view.style.cursor = 'default';
+        
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
         }
     });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}    });
 
     const tokenCountSel = document.getElementById('tokenCountSelect'); // optional — removed from the Entities panel
     if (tokenCountSel) tokenCountSel.addEventListener('change', (e) => {
@@ -259,8 +459,30 @@ export function setupUI() {
             state.lights[state.activeSelectLightId].radius = newRadius; 
             updateLighting(); 
             set(dbRef(db, `lights/${state.activeSelectLightId}/radius`), newRadius); 
+        
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
         }
     });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}    });
 
     document.getElementById('lightTypeSelect').addEventListener('change', (e) => {
         const type = e.target.value;
@@ -274,8 +496,30 @@ export function setupUI() {
         if (!state.isLightAddMode && state.activeSelectLightId && state.lights[state.activeSelectLightId]) {
             set(dbRef(db, `lights/${state.activeSelectLightId}/type`), type);
             set(dbRef(db, `lights/${state.activeSelectLightId}/radius`), parseInt(radiusInput.value, 10));
+        
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
         }
     });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}    });
 
     // --- FIX 2A: CLEAR ALL LIGHTS GHOSTING ---
     document.getElementById('clearLights').addEventListener('click', () => { 
@@ -292,11 +536,55 @@ export function setupUI() {
                 if (state.lightMarkers[id]) {
                     lightMarkerLayer.removeChild(state.lightMarkers[id]);
                     state.lightMarkers[id].destroy();
-                }
-            });
-            state.lightMarkers = {};
+                
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
         }
+    });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}            });
+            state.lightMarkers = {};
         
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+        }
+    });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}        
         // 4. Force a clean render update
         updateLighting();
     });
@@ -338,8 +626,30 @@ export function setupUI() {
             if (modeSwitch.disabled) return;
             setMode(modeSelect.value === 'prep' ? 'play' : 'prep');
         });
-    }
-    [prepSide, playSide].forEach((side) => {
+    
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+        }
+    });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}    [prepSide, playSide].forEach((side) => {
         if (side) side.addEventListener('click', () => {
             if (modeSwitch && modeSwitch.disabled) return;
             setMode(side.dataset.side);
@@ -359,16 +669,60 @@ export function setupUI() {
         if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
         // V1.4 Fix: Use only the first letter for single-word names (e.g., "Sean" -> "S", not "SE")
         return name.charAt(0).toUpperCase();
-    }
+    
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+        }
+    });
 
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}
     document.getElementById('btnSpawnCrew').addEventListener('click', async () => {
         // Read the local player database
         const players = await playerDB.getAllPlayers();
         if (!players || players.length === 0) {
             alert("No crew registered in manifest.");
             return;
+        
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
         }
+    });
 
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}
         // 1. Force the count to 0 so we always get a clean, fresh spawn
         let currentCount = 0; 
         const newTokens = {}; // Bundle all tokens together
@@ -425,8 +779,30 @@ export function setupUI() {
         if (confirm("Remove all tokens from the map?")) {
             set(dbRef(db, 'tokens'), null);
             set(dbRefs.tokenSettings, { ...state.tokenSettings, count: 0 });
+        
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
         }
     });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}    });
 
     
     // V1.4 Player & Token alignment: Token spawner suite for custom labels and colors
@@ -438,16 +814,60 @@ export function setupUI() {
         if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
         // V1.4 Fix: Use only the first letter for single-word names (e.g., "Sean" -> "S", not "SE")
         return name.charAt(0).toUpperCase();
-    }
+    
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+        }
+    });
 
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}
     document.getElementById('btnSpawnCrew').addEventListener('click', async () => {
         // Read the local player database
         const players = await playerDB.getAllPlayers();
         if (!players || players.length === 0) {
             alert("No crew registered in manifest.");
             return;
+        
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
         }
+    });
 
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}
         // We reset tokenSettings count to handle the new batch
         let currentCount = state.tokenSettings ? state.tokenSettings.count || 0 : 0;
         
@@ -499,8 +919,30 @@ export function setupUI() {
         if (confirm("Remove all tokens from the map?")) {
             set(dbRef(db, 'tokens'), null);
             set(dbRefs.tokenSettings, { ...state.tokenSettings, count: 0 });
+        
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
         }
     });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}    });
 
     // --- ACCESS GATE -------------------------------------------------------
     // A plain URL (/) is always play-mode only.
@@ -523,16 +965,82 @@ export function setupUI() {
                 if (modeSelect.value !== 'prep') {
                     modeSelect.value = 'prep'; // admins land in prep mode
                     modeSelect.dispatchEvent(new Event('change'));
-                }
-            } else {
+                
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+        }
+    });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}            } else {
                 if (modeSwitch) modeSwitch.disabled = true;
                 hint.style.display = 'block';
                 if (modeSelect.value !== 'play') {
                     modeSelect.value = 'play';
                     modeSelect.dispatchEvent(new Event('change'));
-                }
-            }
-            // Always re-sync, whether or not the value changed — the switch must
+                
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+        }
+    });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}            
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+        }
+    });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}            // Always re-sync, whether or not the value changed — the switch must
             // never be out of step with the hidden <select>.
             syncModeToggle();
         };
@@ -548,9 +1056,53 @@ export function setupUI() {
             badge.style.cssText = "text-align:center; font-size:11px; letter-spacing:0.5px; color:#71717a; padding:4px 0;";
             badge.innerHTML = '👤 PLAYER · <span style="color:#00ffcc;">PLAY MODE</span>';
             modeSection.appendChild(badge);
+        
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
         }
-    }
+    });
 
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}    
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+        }
+    });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}
     modeSelect.addEventListener('change', (e) => {
         syncModeToggle();
         const isPrepMode = e.target.value === 'prep';
@@ -574,8 +1126,30 @@ export function setupUI() {
             document.getElementById('toggleLightMode').innerText = "💡 Add Lights: OFF";
             document.getElementById('toggleLightMode').style.background = "#b8860b";
             if (!state.isSpacePressed) app.view.style.cursor = 'default';
-        }
         
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+        }
+    });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}        
         redrawWalls();
         updateLighting(); 
     });
@@ -599,11 +1173,55 @@ export function setupUI() {
                 const texture = await PIXI.Texture.fromURL(localUrl);
                 displayMap(texture);
                 state.currentMapUrl = localUrl; 
-            }
-        } catch (previewErr) {
-            console.warn("Local preview skipped:", previewErr);
+            
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
         }
+    });
 
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}        } catch (previewErr) {
+            console.warn("Local preview skipped:", previewErr);
+        
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+        }
+    });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}
         // 2. BACKGROUND UPLOAD FOR PLAYERS
         try {
             const sRef = storageRef(storage, `maps/${Date.now()}_${file.name}`);
@@ -615,8 +1233,30 @@ export function setupUI() {
         } catch (e) {
             console.error(e);
             alert("Upload failed.");
-        }
         
+    // --- FEATURE: SCALE CALIBRATION ---
+    document.getElementById('btnCalibrate').addEventListener('click', (e) => {
+        state.isCalibrating = !state.isCalibrating;
+        if (state.isCalibrating) {
+            e.target.style.background = "#d32f2f";
+            e.target.innerText = "Cancel Calibration";
+            app.view.style.cursor = 'crosshair';
+        } else {
+            e.target.style.background = "#1e88e5";
+            e.target.innerText = "📏 Calibrate by Dragging";
+            app.view.style.cursor = state.isDrawMode ? 'crosshair' : 'default';
+        }
+    });
+
+    ['scalePixels', 'scaleDistance', 'scaleUnit'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const px = parseFloat(document.getElementById('scalePixels').value) || 70;
+            const dist = parseFloat(document.getElementById('scaleDistance').value) || 5;
+            const unit = document.getElementById('scaleUnit').value || 'ft';
+            set(dbRef(db, 'mapScale'), { pixels: px, distance: dist, unit: unit });
+        });
+    });
+}        
         if (sectionHeader) sectionHeader.innerText = "Cartography";
         document.getElementById('mapUpload').disabled = false;
     });
